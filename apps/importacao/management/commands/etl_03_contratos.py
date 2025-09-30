@@ -46,10 +46,11 @@ class Command(BaseETLCommand):
         if not connection:
             return
 
-        # Query para buscar todos os contratos com dados dos clientes
+        # Query para buscar todos os contratos com dados dos clientes e CNPJ da contabilidade
         query = """
         SELECT
             hc.codi_emp as id_legado_contabilidade,
+            cont_ge.cgce_emp as cnpj_contabilidade,
             hc.i_contrato as id_legado_contrato,
             hc.data_inicio_faturamento,
             hc.data_termino,
@@ -79,6 +80,8 @@ class Command(BaseETLCommand):
             BETHADBA.HRVCLIENTE AS hvc ON hc.i_cliente = hvc.i_cliente AND hc.codi_emp = hvc.codigo_escritorio
         INNER JOIN
             BETHADBA.GEEMPRE AS ge ON hvc.i_cliente_fixo = ge.codi_emp
+        INNER JOIN
+            BETHADBA.GEEMPRE AS cont_ge ON hc.codi_emp = cont_ge.codi_emp
         WHERE hc.data_inicio_faturamento >= '2019-01-01'
         AND ge.codi_emp NOT IN (9997, 9998, 9999, 10000, 10001)  -- Excluir empresas modelo
         ORDER BY hc.codi_emp, hc.i_contrato
@@ -130,10 +133,13 @@ class Command(BaseETLCommand):
                 documento_bruto = str(item.get('documento') or '').strip()
                 documento_limpo = re.sub(r'\D', '', documento_bruto)
                 
-                # Buscar contabilidade usando o mapa histórico
-                contabilidade = Contabilidade.objects.filter(id_legado=item.get('id_legado_contabilidade')).first()
+                # Buscar contabilidade pelo CNPJ
+                cnpj_contabilidade = str(item.get('cnpj_contabilidade') or '').strip()
+                cnpj_contabilidade_limpo = re.sub(r'\D', '', cnpj_contabilidade)
+                
+                contabilidade = Contabilidade.objects.filter(cnpj=cnpj_contabilidade_limpo).first()
                 if not contabilidade:
-                    self.stdout.write(self.style.WARNING(f"Contabilidade com ID Legado {item.get('id_legado_contabilidade')} não encontrada. Pulando contrato."))
+                    self.stdout.write(self.style.WARNING(f"Contabilidade com CNPJ {cnpj_contabilidade_limpo} não encontrada. Pulando contrato."))
                     total_erros += 1
                     continue
                 
@@ -173,6 +179,25 @@ class Command(BaseETLCommand):
                 content_type = ContentType.objects.get_for_model(cliente_obj)
 
                 if not self.dry_run:
+                    data_termino = item.get('data_termino')
+                    
+                    # Lógica para determinar se o contrato está ativo
+                    # Um contrato é ativo se a data de término for nula (indeterminado)
+                    # ou se a data de término for no futuro.
+                    ativo = False
+                    if data_termino is None:
+                        ativo = True
+                    else:
+                        # Converte para objeto date se não for
+                        if isinstance(data_termino, str):
+                            try:
+                                data_termino = date.fromisoformat(data_termino.split(' ')[0])
+                            except (ValueError, TypeError):
+                                data_termino = None # Tratar datas inválidas
+                        
+                        if data_termino and data_termino > date.today():
+                            ativo = True
+
                     contrato, created = Contrato.objects.update_or_create(
                         id_legado=contrato_id_legado,
                         defaults={
@@ -180,10 +205,10 @@ class Command(BaseETLCommand):
                             'content_type': content_type,
                             'object_id': cliente_obj.id,
                             'data_inicio': item.get('data_inicio_faturamento'),
-                            'data_termino': item.get('data_termino'),
+                            'data_termino': data_termino,
                             'dia_vencimento': item.get('dia_vencimento'),
                             'valor_honorario': item.get('valor_contrato') or 0,
-                            'ativo': True,
+                            'ativo': ativo,
                         }
                     )
                     

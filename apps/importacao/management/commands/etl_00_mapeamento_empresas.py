@@ -170,13 +170,13 @@ class Command(BaseETLCommand):
         if not self.validar_documento_completo(cgce_emp):
             return True
         
-        # Filtros por nome
-        palavras_exemplo = [
-            'EXEMPLO', 'MODELO', 'TESTE', 'DEMO', 'SAMPLE',
-            'TEMPLATE', 'PADRAO', 'DEFAULT', 'DUMMY'
+        # Padrões de nomes de empresas de exemplo
+        exemplos = [
+            'MODELO', 'EXEMPLO', 'TESTE', 'DEMONSTRACAO', 'TREINAMENTO',
+            'GESTK', 'RUBENS NAMIR', 'EDUARDO MOURAO'
         ]
         
-        for palavra in palavras_exemplo:
+        for palavra in exemplos:
             if palavra in nome_emp:
                 return True
         
@@ -216,15 +216,21 @@ class Command(BaseETLCommand):
             if padrao in nome_emp:
                 return True
         
-        # Filtrar contabilidades (não são empresas)
-        contabilidades = [
-            'ASSESSORIA CONTABIL', 'TAX SIMPLES CONTABILIDADE', 'CONTABILIS',
-            'CONTABILIDADE', 'ASSESSORIA', 'OFFICE'
+        # Filtrar contabilidades que são usadas como template/exemplo, mas não a principal.
+        contabilidades_exemplo = [
+            'TAX SIMPLES CONTABILIDADE', 
+            'CONTABILIS',
+            'CONTABILIDADE TESTE',
+            'SILVEIRA CONSULTORIA E GESTAO CONTABIL' # Exemplo, não a contabilidade principal
         ]
         
-        for contabilidade in contabilidades:
+        for contabilidade in contabilidades_exemplo:
             if contabilidade in nome_emp:
                 return True
+        
+        # Não filtrar a contabilidade principal pelo nome
+        if 'ASSESSORIA CONTABIL OFFICE' in nome_emp and cgce_emp != '10662155000147':
+             return True
         
         return False
     
@@ -299,9 +305,9 @@ class Command(BaseETLCommand):
                     
                     if created:
                         pessoas_criadas['fisicas'] += 1
-                        self.stdout.write(f'  ✓ Pessoa Física criada: {pessoa.nome}')
+                        self.stdout.write(f'  ✓ Pessoa Física criada: {pessoa.nome_completo}')
                     else:
-                        self.stdout.write(f'  - Pessoa Física já existe: {pessoa.nome}')
+                        self.stdout.write(f'  - Pessoa Física já existe: {pessoa.nome_completo}')
                 
                 else:
                     self.stdout.write(f'  ⚠ Tipo de pessoa desconhecido: {empresa["nome_emp"]}')

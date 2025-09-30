@@ -52,9 +52,19 @@ class CarteiraViewSet(viewsets.ViewSet):
                 if not cliente:
                     continue
 
+                # Filtro para notas fiscais baseado no tipo de cliente (Pessoa Jurídica ou Física)
+                nota_filter = {'contabilidade': contabilidade}
+                if isinstance(cliente, PessoaJuridica):
+                    nota_filter['parceiro_pj'] = cliente
+                elif isinstance(cliente, PessoaFisica):
+                    nota_filter['parceiro_pf'] = cliente
+                else: # Caso o cliente não seja nem PJ nem PF, não haverá notas
+                    nota_filter = {'pk__isnull': True}
+
+
                 # Contar lançamentos e notas fiscais
                 total_lancamentos = LancamentoContabil.objects.filter(contrato=contrato).count()
-                total_notas = NotaFiscal.objects.filter(contrato=contrato).count()
+                total_notas = NotaFiscal.objects.filter(**nota_filter).count()
                 
                 # Calcular valores totais
                 valor_total_lancamentos = LancamentoContabil.objects.filter(
@@ -62,7 +72,7 @@ class CarteiraViewSet(viewsets.ViewSet):
                 ).aggregate(total=Sum('valor_total'))['total'] or 0
                 
                 valor_total_notas = NotaFiscal.objects.filter(
-                    contrato=contrato
+                    **nota_filter
                 ).aggregate(total=Sum('valor_total'))['total'] or 0
 
                 # Determinar status
@@ -85,8 +95,8 @@ class CarteiraViewSet(viewsets.ViewSet):
                     'nome': cliente.razao_social if isinstance(cliente, PessoaJuridica) else cliente.nome_completo,
                     'documento': cliente.cnpj if isinstance(cliente, PessoaJuridica) else cliente.cpf,
                     'status_cliente': status_cliente,
-                    'data_inicio_contrato': contrato.data_inicio,
-                    'data_termino_contrato': contrato.data_termino,
+                    'data_inicio_contrato': contrato.data_inicio.isoformat() if contrato.data_inicio else None,
+                    'data_termino_contrato': contrato.data_termino.isoformat() if contrato.data_termino else None,
                     'total_lancamentos': total_lancamentos,
                     'valor_total_lancamentos': valor_total_lancamentos,
                     'total_notas_fiscais': total_notas,

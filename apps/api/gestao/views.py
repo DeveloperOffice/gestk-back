@@ -23,6 +23,9 @@ from .serializers import (
     UsuarioSerializer, UsuarioAtividadesSerializer, UsuarioProdutividadeSerializer
 )
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 class CarteiraViewSet(viewsets.ViewSet):
     """
@@ -37,53 +40,64 @@ class CarteiraViewSet(viewsets.ViewSet):
         Lista clientes por status (Ativos, Inativos, Novos, Sem movimentação)
         """
         try:
-            # Filtrar por contabilidade do usuário
-            contabilidade = request.user.contabilidade
-            if not contabilidade:
+            # 1. Obter a contabilidade do usuário autenticado
+            usuario = request.user
+            if not usuario.is_authenticated:
+                logger.error("Usuário não autenticado.")
+                return Response({"error": "Authentication credentials were not provided."}, status=status.HTTP_401_UNAUTHORIZED)
+
+            if not hasattr(usuario, 'contabilidade') or not usuario.contabilidade:
+                logger.error(f"Usuário {usuario.username} não possui contabilidade associada.")
                 return Response(
                     {"error": "Usuário não possui contabilidade associada"}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
+            
+            contabilidade = usuario.contabilidade
+            logger.info(f"Iniciando busca na carteira para contabilidade: '{contabilidade.razao_social}' (ID: {contabilidade.id})")
 
-            # Buscar contratos da contabilidade
-            contratos = Contrato.objects.filter(contabilidade=contabilidade)
+            # 2. Buscar todos os contratos da contabilidade
+            todos_os_contratos = Contrato.objects.filter(contabilidade=contabilidade)
+            total_clientes = todos_os_contratos.count()
+            logger.info(f"Total de contratos encontrados para esta contabilidade: {total_clientes}")
+
+            # 3. Calcular status dos clientes
+            clientes_ativos_qs = todos_os_contratos.filter(ativo=True)
+            clientes_ativos = clientes_ativos_qs.count()
+            clientes_inativos = total_clientes - clientes_ativos
             
-            # Contar por status
-            total_clientes = contratos.count()
-            clientes_ativos = contratos.filter(ativo=True).count()
-            clientes_inativos = contratos.filter(ativo=False).count()
-            
-            # Clientes novos (últimos 30 dias)
+            # 4. Calcular clientes novos (ativos nos últimos 30 dias)
             data_limite_novos = timezone.now().date() - timedelta(days=30)
-            clientes_novos = contratos.filter(
-                ativo=True,
+            clientes_novos = clientes_ativos_qs.filter(
                 data_inicio__gte=data_limite_novos
             ).count()
             
-            # Clientes sem movimentação (simulado - sem dados reais de lançamentos)
-            contratos_sem_movimentacao = 0  # Simulado por enquanto
+            logger.info(f"Cálculos: Total={total_clientes}, Ativos={clientes_ativos}, Inativos={clientes_inativos}, Novos={clientes_novos}")
+
+            # 5. Simular clientes sem movimentação
+            contratos_sem_movimentacao = 0
             
+            # 6. Calcular percentual
             percentual_ativo = (clientes_ativos / total_clientes * 100) if total_clientes > 0 else 0
 
+            # 7. Montar a resposta
             data = {
-                'contabilidade': {
-                    'id': str(contabilidade.id),
-                    'cnpj': contabilidade.cnpj,
-                    'razao_social': contabilidade.razao_social,
-                    'nome_fantasia': contabilidade.nome_fantasia
+                'summary': {
+                    'total_clientes': total_clientes,
+                    'clientes_ativos': clientes_ativos,
+                    'clientes_inativos': clientes_inativos,
+                    'clientes_novos': clientes_novos,
+                    'clientes_sem_movimentacao': contratos_sem_movimentacao,
+                    'percentual_ativo': round(percentual_ativo, 2)
                 },
-                'total_clientes': total_clientes,
-                'clientes_ativos': clientes_ativos,
-                'clientes_inativos': clientes_inativos,
-                'clientes_novos': clientes_novos,
-                'clientes_sem_movimentacao': contratos_sem_movimentacao,
-                'percentual_ativo': round(percentual_ativo, 2)
+                'results': [] 
             }
 
-            serializer = CarteiraClientesSerializer(data)
-            return Response(serializer.data)
+            logger.info(f"Dados da resposta: {data}")
+            return Response(data)
 
         except Exception as e:
+            logger.exception("Erro crítico ao buscar dados da carteira.")
             return Response(
                 {"error": f"Erro ao buscar dados da carteira: {str(e)}"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR

@@ -114,6 +114,11 @@ DATABASES = {
 
 
 # SYBASE CONNECTION (para o sistema de ETL)
+SYBASE_HOST = config('SYBASE_HOST', default='192.168.1.250')
+SYBASE_DB = config('SYBASE_DB', default='master')
+SYBASE_USER = config('SYBASE_USER', default='dba')
+SYBASE_PASSWORD = config('SYBASE_PASSWORD', default='sql')
+
 SYBASE_CONFIG = {
     'DRIVER': config('ODBC_DRIVER', default='SQL Anywhere 17'),
     'SERVER': config('ODBC_SERVER', default='dominio3'),

@@ -24,7 +24,7 @@ class PessoaJuridica(models.Model):
     nome_fantasia = models.CharField(_('Nome Fantasia'), max_length=255, blank=True, null=True)
     
     # Endereço
-    endereco = models.CharField(_('Endereço'), max_length=255, blank=True, null=True)
+    logradouro = models.CharField(_('Logradouro'), max_length=255, blank=True, null=True)
     numero = models.CharField(_('Número'), max_length=20, blank=True, null=True)
     complemento = models.CharField(_('Complemento'), max_length=100, blank=True, null=True)
     bairro = models.CharField(_('Bairro'), max_length=100, blank=True, null=True)
@@ -151,7 +151,7 @@ class PessoaFisica(models.Model):
     data_nascimento = models.DateField(_('Data de Nascimento'), blank=True, null=True)
     
     # Endereço
-    endereco = models.CharField(_('Endereço'), max_length=255, blank=True, null=True)
+    logradouro = models.CharField(_('Logradouro'), max_length=255, blank=True, null=True)
     numero = models.CharField(_('Número'), max_length=20, blank=True, null=True)
     complemento = models.CharField(_('Complemento'), max_length=100, blank=True, null=True)
     bairro = models.CharField(_('Bairro'), max_length=100, blank=True, null=True)

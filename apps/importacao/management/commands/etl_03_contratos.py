@@ -63,7 +63,16 @@ class Command(BaseETLCommand):
             ge.cnae_emp,
             ge.ramo_emp,
             ge.rleg_emp,
-            ge.cpf_leg_emp as cpf_responsavel
+            ge.cpf_leg_emp as cpf_responsavel,
+            ge.ende_emp as logradouro,
+            ge.nume_emp as numero,
+            ge.comp_emp as complemento,
+            ge.bair_emp as bairro,
+            ge.cida_emp as cidade,
+            ge.esta_emp as uf,
+            ge.cepe_emp as cep,
+            ge.email_emp as email,
+            ge.fone_emp as telefone
         FROM 
             BETHADBA.HRCONTRATO AS hc
         INNER JOIN
@@ -229,14 +238,34 @@ class Command(BaseETLCommand):
                     'id_legado': item.get('id_legado_cliente'),
                     'razao_social': str(item.get('nome_razao_social') or '').strip(),
                     'nome_fantasia': str(item.get('fantasia_emp') or '').strip(),
+                    'logradouro': str(item.get('logradouro') or '').strip(),
+                    'numero': str(item.get('numero') or '').strip(),
+                    'complemento': str(item.get('complemento') or '').strip(),
+                    'bairro': str(item.get('bairro') or '').strip(),
+                    'cidade': str(item.get('cidade') or '').strip(),
+                    'uf': str(item.get('uf') or '').strip(),
+                    'cep': str(item.get('cep') or '').strip(),
+                    'email': str(item.get('email') or '').strip(),
+                    'telefone': str(item.get('telefone') or '').strip(),
                 }
             )
             
-            # Sempre atualizar os campos de regime tributário
+            # Sempre atualizar os campos
             pj.regime_tributario = regime_tributario
             pj.simples_nacional = bool(simples_emp == 1)
             if item.get('rleg_emp'):
                 pj.responsavel_legal = str(item.get('rleg_emp')).strip()
+            
+            # Atualizar campos de endereço e contato
+            pj.logradouro = str(item.get('logradouro') or '').strip() or pj.logradouro
+            pj.numero = str(item.get('numero') or '').strip() or pj.numero
+            pj.complemento = str(item.get('complemento') or '').strip() or pj.complemento
+            pj.bairro = str(item.get('bairro') or '').strip() or pj.bairro
+            pj.cidade = str(item.get('cidade') or '').strip() or pj.cidade
+            pj.uf = str(item.get('uf') or '').strip() or pj.uf
+            pj.cep = str(item.get('cep') or '').strip() or pj.cep
+            pj.email = str(item.get('email') or '').strip() or pj.email
+            pj.telefone = str(item.get('telefone') or '').strip() or pj.telefone
             pj.save()
             
             return pj
@@ -248,8 +277,30 @@ class Command(BaseETLCommand):
                 defaults={
                     'id_legado': item.get('id_legado_cliente'),
                     'nome_completo': str(item.get('nome_razao_social') or '').strip(),
+                    'logradouro': str(item.get('logradouro') or '').strip(),
+                    'numero': str(item.get('numero') or '').strip(),
+                    'complemento': str(item.get('complemento') or '').strip(),
+                    'bairro': str(item.get('bairro') or '').strip(),
+                    'cidade': str(item.get('cidade') or '').strip(),
+                    'uf': str(item.get('uf') or '').strip(),
+                    'cep': str(item.get('cep') or '').strip(),
+                    'email': str(item.get('email') or '').strip(),
+                    'telefone': str(item.get('telefone') or '').strip(),
                 }
             )
+            
+            # Atualizar campos de endereço e contato
+            pf.logradouro = str(item.get('logradouro') or '').strip() or pf.logradouro
+            pf.numero = str(item.get('numero') or '').strip() or pf.numero
+            pf.complemento = str(item.get('complemento') or '').strip() or pf.complemento
+            pf.bairro = str(item.get('bairro') or '').strip() or pf.bairro
+            pf.cidade = str(item.get('cidade') or '').strip() or pf.cidade
+            pf.uf = str(item.get('uf') or '').strip() or pf.uf
+            pf.cep = str(item.get('cep') or '').strip() or pf.cep
+            pf.email = str(item.get('email') or '').strip() or pf.email
+            pf.telefone = str(item.get('telefone') or '').strip() or pf.telefone
+            pf.save()
+            
             return pf
         
         else:

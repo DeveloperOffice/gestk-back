@@ -47,6 +47,60 @@ Para rastreabilidade e segurança, todas as alterações importantes nos dados s
 
 ---
 
+## 🚀 Novidades - API de Administração GESTK
+
+### ✅ **Sistema de Administração Multi-Tenant Implementado**
+
+O GESTK agora possui uma **API de Administração completa** que permite:
+
+#### **🔐 Controle de Acessos Avançado**
+- **Multi-tenancy**: Usuários podem acessar múltiplas contabilidades com diferentes permissões
+- **Escopo Granular**: Controle de acesso por contrato específico ou empresa (CNPJ)
+- **Roles Flexíveis**: Superusuário, Admin, Operacional, ETL, Somente Leitura
+- **MFA e IP**: Suporte a autenticação de dois fatores e restrição por faixas de IP
+
+#### **📋 Gestão de Contratos**
+- **Contratos GESTK**: Gestão dos contratos entre GESTK e escritórios de contabilidade
+- **Contratos Internos**: Gestão dos contratos entre contabilidades e seus clientes
+- **Status e Ciclo de Vida**: Ativo, Suspenso, Cancelado, Vencido, Trial
+- **Limites e Recursos**: Controle de usuários, empresas e contratos por plano
+
+#### **💰 Sistema de Billing Completo**
+- **Planos de Serviço**: Criação e gestão de planos com preços e recursos
+- **Assinaturas**: Contratação e renovação automática de planos
+- **Faturas**: Geração automática e gestão de faturas
+- **Pagamentos**: Múltiplos métodos de pagamento com confirmação e estorno
+
+#### **📊 Dashboards e Relatórios**
+- **Resumos Financeiros**: Receita, faturas pendentes, inadimplência
+- **Métricas de Uso**: Usuários ativos, contratos por status, crescimento
+- **Auditoria**: Rastreamento completo de alterações e acessos
+
+### **🔗 Endpoints Disponíveis**
+
+```
+# Administração
+/api/administracao/contratos-gestk/          # Contratos GESTK
+/api/administracao/usuarios-acesso/          # Acessos de usuários
+/api/administracao/contabilidades-admin/     # Contabilidades com admin
+
+# Billing
+/api/billing/planos/                         # Planos de serviço
+/api/billing/assinaturas/                    # Assinaturas
+/api/billing/faturas/                        # Faturas
+/api/billing/pagamentos/                     # Pagamentos
+/api/billing/contabilidades-billing/         # Contabilidades com billing
+```
+
+### **🛡️ Segurança e Permissões**
+
+- **Regra de Ouro**: Validação automática de acesso baseada no contexto de contabilidade
+- **Middleware Multi-Tenant**: Definição automática do contexto de tenant
+- **Auditoria Completa**: Log de todas as operações e mudanças de contexto
+- **JWT Authentication**: Tokens seguros com refresh automático
+
+---
+
 ## 📋 Status Atual do Projeto (Janeiro 2025)
 
 ### ✅ **FASE 1: MIGRAÇÃO DE DADOS (ETL) - CONCLUÍDA**

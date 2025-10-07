@@ -6,6 +6,7 @@ ETLs 18, 19 e 20 - Usuários, Logs e Lançamentos
 from django.db import models
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
+from django.utils import timezone
 from apps.core.models import Contabilidade
 from apps.pessoas.models import PessoaJuridica, PessoaFisica
 import uuid
@@ -378,3 +379,245 @@ class AuditoriaSistema(BaseModeloMultitenant):
     
     def __str__(self):
         return f"{self.acao} - {self.tabela_afetada} - {self.data_criacao}"
+
+
+class ContratoGestk(models.Model):
+    """
+    Contratos dos escritórios de contabilidade (clientes da GESTK)
+    Diferente de pessoas.Contrato (clientes internos das contabilidades)
+    """
+    STATUS_CHOICES = [
+        ('trial', 'Período de Teste'),
+        ('ativo', 'Ativo'),
+        ('suspenso', 'Suspenso'),
+        ('cancelado', 'Cancelado'),
+        ('vencido', 'Vencido')
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # Cliente da GESTK (escritório de contabilidade)
+    contabilidade = models.OneToOneField(
+        Contabilidade, 
+        on_delete=models.CASCADE,
+        related_name='contrato_gestk',
+        help_text="Escritório de contabilidade cliente da GESTK"
+    )
+    
+    # Dados do contrato
+    numero_contrato = models.CharField(
+        max_length=50, 
+        unique=True, 
+        db_index=True,
+        help_text="Número único do contrato GESTK"
+    )
+    data_inicio = models.DateField(
+        db_index=True,
+        help_text="Data de início do contrato"
+    )
+    data_termino = models.DateField(
+        null=True, 
+        blank=True, 
+        db_index=True,
+        help_text="Data de término do contrato (NULL = sem prazo definido)"
+    )
+    data_renovacao = models.DateField(
+        null=True, 
+        blank=True,
+        help_text="Data de renovação do contrato"
+    )
+    
+    # Plano e serviços
+    plano_servico = models.CharField(
+        max_length=50, 
+        db_index=True,
+        help_text="Código do plano de serviço (basic, pro, enterprise)"
+    )
+    modulos_inclusos = models.JSONField(
+        default=list,
+        help_text="Lista de módulos inclusos no contrato"
+    )
+    limites_usuarios = models.IntegerField(
+        default=5,
+        help_text="Limite de usuários simultâneos"
+    )
+    limites_empresas = models.IntegerField(
+        default=10,
+        help_text="Limite de empresas que podem ser gerenciadas"
+    )
+    limites_contratos_internos = models.IntegerField(
+        default=100,
+        help_text="Limite de contratos internos (clientes da contabilidade)"
+    )
+    
+    # Valores e cobrança
+    valor_mensal = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2,
+        help_text="Valor mensal do contrato"
+    )
+    valor_anual = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        null=True, 
+        blank=True,
+        help_text="Valor anual do contrato (se houver desconto)"
+    )
+    desconto_percentual = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        default=0,
+        help_text="Percentual de desconto aplicado"
+    )
+    dia_vencimento = models.IntegerField(
+        default=10,
+        help_text="Dia do mês para vencimento das faturas"
+    )
+    
+    # Status e controle
+    status = models.CharField(
+        max_length=20, 
+        choices=STATUS_CHOICES,
+        default='ativo',
+        db_index=True,
+        help_text="Status atual do contrato"
+    )
+    
+    # Motivos de suspensão/cancelamento
+    motivo_suspensao = models.CharField(
+        max_length=255, 
+        blank=True, 
+        null=True,
+        help_text="Motivo da suspensão do contrato"
+    )
+    data_suspensao = models.DateField(
+        null=True, 
+        blank=True,
+        help_text="Data da suspensão do contrato"
+    )
+    motivo_cancelamento = models.CharField(
+        max_length=255, 
+        blank=True, 
+        null=True,
+        help_text="Motivo do cancelamento do contrato"
+    )
+    data_cancelamento = models.DateField(
+        null=True, 
+        blank=True,
+        help_text="Data do cancelamento do contrato"
+    )
+    
+    # Dados de cobrança
+    responsavel_financeiro_nome = models.CharField(
+        max_length=100, 
+        blank=True, 
+        null=True,
+        help_text="Nome do responsável financeiro"
+    )
+    responsavel_financeiro_email = models.EmailField(
+        blank=True, 
+        null=True,
+        help_text="E-mail do responsável financeiro"
+    )
+    responsavel_financeiro_telefone = models.CharField(
+        max_length=20, 
+        blank=True, 
+        null=True,
+        help_text="Telefone do responsável financeiro"
+    )
+    
+    # Endereço de cobrança
+    endereco_cobranca = models.JSONField(
+        default=dict, 
+        blank=True,
+        help_text="Endereço para cobrança (JSON com logradouro, cidade, etc.)"
+    )
+    
+    # Configurações especiais
+    trial_ate = models.DateField(
+        null=True, 
+        blank=True,
+        help_text="Data limite do período de teste"
+    )
+    observacoes = models.TextField(
+        blank=True, 
+        null=True,
+        help_text="Observações adicionais sobre o contrato"
+    )
+    
+    # Auditoria
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        'core.Usuario', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='contratos_gestk_criados',
+        help_text="Usuário que criou o contrato"
+    )
+    
+    class Meta:
+        verbose_name = 'Contrato GESTK'
+        verbose_name_plural = 'Contratos GESTK'
+        db_table = 'administracao_contratos_gestk'
+        indexes = [
+            models.Index(fields=['status', 'data_inicio']),
+            models.Index(fields=['plano_servico', 'status']),
+            models.Index(fields=['data_termino']),
+            models.Index(fields=['trial_ate']),
+            models.Index(fields=['numero_contrato']),
+        ]
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Contrato {self.numero_contrato} - {self.contabilidade.razao_social}"
+    
+    @property
+    def esta_vencido(self):
+        """Verifica se o contrato está vencido"""
+        if self.data_termino and self.data_termino < timezone.now().date():
+            return True
+        return False
+    
+    @property
+    def esta_em_trial(self):
+        """Verifica se o contrato está em período de teste"""
+        if self.trial_ate and self.trial_ate >= timezone.now().date():
+            return True
+        return False
+    
+    @property
+    def dias_para_vencimento(self):
+        """Retorna quantos dias faltam para o vencimento"""
+        if not self.data_termino:
+            return None
+        delta = self.data_termino - timezone.now().date()
+        return delta.days
+    
+    def suspender(self, motivo, data_suspensao=None):
+        """Suspende o contrato"""
+        if data_suspensao is None:
+            data_suspensao = timezone.now().date()
+        
+        self.status = 'suspenso'
+        self.motivo_suspensao = motivo
+        self.data_suspensao = data_suspensao
+        self.save()
+    
+    def cancelar(self, motivo, data_cancelamento=None):
+        """Cancela o contrato"""
+        if data_cancelamento is None:
+            data_cancelamento = timezone.now().date()
+        
+        self.status = 'cancelado'
+        self.motivo_cancelamento = motivo
+        self.data_cancelamento = data_cancelamento
+        self.save()
+    
+    def ativar(self):
+        """Ativa o contrato"""
+        self.status = 'ativo'
+        self.motivo_suspensao = None
+        self.data_suspensao = None
+        self.save()

@@ -60,7 +60,8 @@ INSTALLED_APPS = [
     'apps.funcionarios.apps.FuncionariosConfig',          # 7º - RH Completo
     'apps.importacao.apps.ImportacaoConfig',              # 8º - Sistema de ETL
     'apps.administracao.apps.AdministracaoConfig',        # 9º - Administração (Usuários, Permissões)
-    'apps.api.apps.ApiConfig',                            # 10º - API REST
+    'apps.billing.apps.BillingConfig',                    # 10º - Billing e Cobrança
+    'apps.api.apps.ApiConfig',                            # 11º - API REST
     'apps.api.gestao.apps.GestaoConfig',                  # 11º - Gestão (Endpoints de Análise)
     'apps.api.dashboards.apps.DashboardsConfig',          # 12º - Dashboards (Endpoints de Análise)
 ]
@@ -72,6 +73,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'apps.api.shared.middleware.MultiTenantContextMiddleware',  # Multi-tenant context
+    'apps.api.shared.middleware.TenantAuditMiddleware',         # Tenant audit
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'simple_history.middleware.HistoryRequestMiddleware', # Django Simple History

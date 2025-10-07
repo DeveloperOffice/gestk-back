@@ -2,6 +2,7 @@
 ViewSets Base para API REST
 
 Classes base que implementam multitenancy e Regra de Ouro
+Atualizado para suportar multi-tenant com UsuarioAcesso
 """
 
 from rest_framework import viewsets, status
@@ -10,7 +11,9 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.core.cache import cache
 from django.db.models import Q
+from django.core.exceptions import PermissionDenied
 from .filters import ContabilidadeFilterBackend, DataEventoFilterBackend, MultitenantPermissionMixin
+from .permissions import IsContabilidadeAccessible, IsScopeAccessible
 import logging
 
 logger = logging.getLogger(__name__)
@@ -21,29 +24,99 @@ class BaseViewSet(MultitenantPermissionMixin, viewsets.ModelViewSet):
     ViewSet base que implementa multitenancy automático
     """
     
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsContabilidadeAccessible]
     filter_backends = [ContabilidadeFilterBackend, DataEventoFilterBackend]
     
     def get_queryset(self):
         """
-        Aplica filtros automáticos por contabilidade
+        Aplica filtros automáticos por contabilidade e escopo
         """
         queryset = super().get_queryset()
         
         if not self.request.user.is_authenticated:
             return queryset.none()
         
+        # Superusuários têm acesso total
+        if self.request.user.is_superuser:
+            return queryset
+        
         # Verificar se o modelo tem campo contabilidade
         if not hasattr(queryset.model, 'contabilidade'):
             return queryset
         
-        # Aplicar filtro por contabilidade
-        contabilidade = getattr(self.request, 'contabilidade', self.request.user.contabilidade)
+        # Obter contabilidade do contexto
+        contabilidade = getattr(self.request, 'contabilidade', None)
         
         if not contabilidade:
-            return queryset.none()
+            # Tentar usar a contabilidade padrão do usuário
+            if hasattr(self.request.user, 'contabilidade') and self.request.user.contabilidade:
+                contabilidade = self.request.user.contabilidade
+            else:
+                return queryset.none()
         
-        return queryset.filter(contabilidade=contabilidade)
+        # Aplicar filtro por contabilidade
+        queryset = queryset.filter(contabilidade=contabilidade)
+        
+        # Aplicar filtros de escopo se necessário
+        queryset = self.aplicar_filtros_escopo(queryset)
+        
+        return queryset
+    
+    def aplicar_filtros_escopo(self, queryset):
+        """
+        Aplica filtros de escopo baseados no UsuarioAcesso
+        """
+        try:
+            from apps.core.models import UsuarioAcesso
+            from django.utils import timezone
+            
+            # Buscar acessos do usuário para a contabilidade atual
+            contabilidade = getattr(self.request, 'contabilidade', None)
+            if not contabilidade:
+                return queryset
+            
+            acessos = UsuarioAcesso.objects.filter(
+                usuario=self.request.user,
+                contabilidade=contabilidade,
+                ativo=True,
+                data_inicio__lte=timezone.now().date(),
+                data_fim__isnull=True
+            ) | UsuarioAcesso.objects.filter(
+                usuario=self.request.user,
+                contabilidade=contabilidade,
+                ativo=True,
+                data_inicio__lte=timezone.now().date(),
+                data_fim__gte=timezone.now().date()
+            )
+            
+            # Se não há acessos, retornar queryset vazio
+            if not acessos.exists():
+                return queryset.none()
+            
+            # Verificar se algum acesso permite acesso total (sem restrição de escopo)
+            tem_acesso_total = any(not acesso.contrato and not acesso.empresa_cnpj for acesso in acessos)
+            
+            if tem_acesso_total:
+                return queryset
+            
+            # Aplicar filtros de escopo
+            filtros_escopo = Q()
+            
+            for acesso in acessos:
+                if acesso.contrato and hasattr(queryset.model, 'contrato'):
+                    filtros_escopo |= Q(contrato=acesso.contrato)
+                
+                if acesso.empresa_cnpj and hasattr(queryset.model, 'empresa_cnpj'):
+                    filtros_escopo |= Q(empresa_cnpj=acesso.empresa_cnpj)
+            
+            if filtros_escopo:
+                return queryset.filter(filtros_escopo)
+            
+            return queryset.none()
+            
+        except Exception as e:
+            logger.error(f"Erro ao aplicar filtros de escopo: {e}")
+            return queryset.none()
     
     def perform_create(self, serializer):
         """

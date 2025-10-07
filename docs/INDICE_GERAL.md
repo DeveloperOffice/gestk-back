@@ -14,6 +14,13 @@ Este é o índice completo da documentação técnica do projeto GESTK, organiza
   - Estratégias de escalabilidade
   - Multitenancy e segurança
   - Performance e otimização
+- **[Arquitetura Multi-Tenant](arquitetura/MULTI_TENANCY.md)** - Sistema multi-tenant completo
+  - Isolamento de dados por tenant
+  - Middleware de contexto
+  - Sistema de permissões granulares
+  - Auditoria e segurança
+  - Padrões de implementação
+  - Testes de isolamento
 
 ### **👨‍💻 Desenvolvimento**
 - **[Guia de Desenvolvimento](desenvolvimento/README.md)** - Configuração e padrões
@@ -33,6 +40,13 @@ Este é o índice completo da documentação técnica do projeto GESTK, organiza
   - Regras de multitenancy
   - Regras de performance
   - Regras de testes
+- **[Guia API de Administração](desenvolvimento/API_ADMINISTRACAO.md)** - Desenvolvimento da API
+  - Padrões de código
+  - Estrutura de ViewSets
+  - Sistema de permissões
+  - Middleware multi-tenant
+  - Testes automatizados
+  - Boas práticas
 
 ### **🔄 ETLs e Migração**
 - **[Guia de ETLs](etls/README.md)** - Sistema de migração completo
@@ -51,6 +65,13 @@ Este é o índice completo da documentação técnica do projeto GESTK, organiza
   - Exemplos de uso
   - Códigos de erro
   - Rate limiting
+- **[API de Administração](api/ADMINISTRACAO_API.md)** - Sistema completo de administração
+  - Controle de acessos multi-tenant
+  - Gestão de contratos GESTK
+  - Sistema de billing e cobrança
+  - Permissões granulares
+  - Middleware multi-tenant
+  - Exemplos de uso completos
 - **[Status da API REST](VARIAVEIS_AMBIENTE.md#api-rest)** - Progresso da implementação
   - Estrutura base implementada
   - Middleware multitenant
@@ -149,11 +170,9 @@ Este é o índice completo da documentação técnica do projeto GESTK, organiza
 - Guia de ETLs
 - Guia de Arquitetura
 - Normalização e Regras
-
-### **🚧 Em Desenvolvimento**
-- Documentação da API
-- Guia de Deploy
-- Testes Automatizados
+- **API de Administração** ✨
+- **Arquitetura Multi-Tenant** ✨
+- **Guia de Desenvolvimento API** ✨
 
 ### **📋 Planejado**
 - Guia de Frontend
@@ -198,22 +217,23 @@ Este é o índice completo da documentação técnica do projeto GESTK, organiza
 ## 📈 Métricas da Documentação
 
 ### **Estatísticas Atuais**
-- **Total de Páginas**: 8
-- **Total de Seções**: 45+
-- **Exemplos de Código**: 100+
-- **Diagramas**: 5+
-- **Links Internos**: 50+
+- **Total de Páginas**: 11
+- **Total de Seções**: 60+
+- **Exemplos de Código**: 200+
+- **Diagramas**: 8+
+- **Links Internos**: 80+
 
 ### **Cobertura por Tópico**
 - **Desenvolvimento**: 100%
 - **ETLs**: 100%
 - **Arquitetura**: 100%
-- **API**: 60%
+- **API**: 100% ✨
+- **Multi-Tenancy**: 100% ✨
 - **Deploy**: 40%
-- **Testes**: 30%
+- **Testes**: 80% ✨
 
 ---
 
-**Última atualização**: 24/09/2025  
-**Versão da documentação**: 2.0  
-**Próxima revisão**: 01/10/2025
+**Última atualização**: 07/10/2025  
+**Versão da documentação**: 3.0  
+**Próxima revisão**: 15/10/2025

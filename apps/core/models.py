@@ -1,6 +1,7 @@
 import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from simple_history.models import HistoricalRecords
 
@@ -15,6 +16,48 @@ class Contabilidade(models.Model):
     telefone = models.CharField(_('Telefone'), max_length=20, blank=True, null=True)
     email = models.EmailField(_('E-mail'), blank=True, null=True)
     ativo = models.BooleanField(_('Ativo'), default=True)
+    
+    # Dados de cobrança
+    responsavel_financeiro_nome = models.CharField(
+        _('Responsável Financeiro - Nome'), 
+        max_length=100, 
+        blank=True, 
+        null=True
+    )
+    responsavel_financeiro_email = models.EmailField(
+        _('Responsável Financeiro - E-mail'), 
+        blank=True, 
+        null=True
+    )
+    responsavel_financeiro_telefone = models.CharField(
+        _('Responsável Financeiro - Telefone'), 
+        max_length=20, 
+        blank=True, 
+        null=True
+    )
+    inscricao_estadual = models.CharField(
+        _('Inscrição Estadual'), 
+        max_length=20, 
+        blank=True, 
+        null=True
+    )
+    endereco_cobranca = models.JSONField(
+        _('Endereço de Cobrança'), 
+        default=dict, 
+        blank=True,
+        help_text="Endereço para cobrança (JSON com logradouro, cidade, etc.)"
+    )
+    suspensa_por_inadimplencia = models.BooleanField(
+        _('Suspensa por Inadimplência'), 
+        default=False
+    )
+    saldo_creditos = models.DecimalField(
+        _('Saldo de Créditos'), 
+        max_digits=10, 
+        decimal_places=2, 
+        default=0
+    )
+    
     created_at = models.DateTimeField(_('Data de Criação'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Data de Atualização'), auto_now=True)
     
@@ -67,6 +110,17 @@ class Usuario(AbstractUser):
         related_name='usuarios',
         verbose_name=_('Contabilidade'),
         null=True, blank=True  # Temporário para superusuários
+    )
+    
+    # Contabilidade mais recentemente acessada (para multi-tenant)
+    ultima_contabilidade = models.ForeignKey(
+        Contabilidade,
+        on_delete=models.SET_NULL,
+        related_name='usuarios_ultimo_acesso',
+        verbose_name=_('Última Contabilidade'),
+        null=True,
+        blank=True,
+        help_text="Contabilidade mais recentemente acessada pelo usuário"
     )
     
     # Dados pessoais
@@ -203,3 +257,179 @@ class Usuario(AbstractUser):
     def is_etl_user(self):
         """Verifica se é usuário de ETL"""
         return self.tipo_usuario == 'etl'
+
+
+class UsuarioAcesso(models.Model):
+    """
+    Vínculos de usuários com contabilidades e escopos específicos
+    Permite que um usuário PF tenha acesso a múltiplas contabilidades
+    """
+    ROLE_CHOICES = [
+        ('superuser', 'Superusuário'),
+        ('admin', 'Administrador'),
+        ('operacional', 'Operacional'),
+        ('etl', 'ETL'),
+        ('readonly', 'Somente Leitura'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # Usuário e contabilidade
+    usuario = models.ForeignKey(
+        Usuario,
+        on_delete=models.CASCADE,
+        related_name='acessos',
+        db_index=True,
+        help_text="Usuário que tem acesso"
+    )
+    contabilidade = models.ForeignKey(
+        Contabilidade,
+        on_delete=models.CASCADE,
+        related_name='acessos_usuarios',
+        db_index=True,
+        help_text="Contabilidade acessível"
+    )
+    
+    # Escopo do acesso (opcional - se não especificado, acesso total à contabilidade)
+    contrato = models.ForeignKey(
+        'pessoas.Contrato',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text="Contrato específico (se o acesso for restrito a um cliente)"
+    )
+    empresa_cnpj = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="CNPJ da empresa específica (se o acesso for restrito)"
+    )
+    
+    # Perfil e permissões
+    role = models.CharField(
+        max_length=20,
+        choices=ROLE_CHOICES,
+        default='operacional',
+        db_index=True,
+        help_text="Papel do usuário nesta contabilidade"
+    )
+    modulos_acesso = models.JSONField(
+        default=list,
+        help_text="Módulos que o usuário pode acessar nesta contabilidade"
+    )
+    
+    # Janela de validade
+    data_inicio = models.DateField(
+        db_index=True,
+        help_text="Data de início do acesso"
+    )
+    data_fim = models.DateField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Data de fim do acesso (NULL = sem prazo definido)"
+    )
+    ativo = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text="Se o acesso está ativo"
+    )
+    
+    # Segurança
+    mfa_required = models.BooleanField(
+        default=False,
+        help_text="MFA obrigatório para este acesso"
+    )
+    allowed_ip_ranges = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Faixas de IP permitidas (CIDR)"
+    )
+    
+    # Auditoria
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        Usuario,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='acessos_criados',
+        help_text="Usuário que criou este acesso"
+    )
+    
+    class Meta:
+        verbose_name = 'Acesso de Usuário'
+        verbose_name_plural = 'Acessos de Usuários'
+        db_table = 'core_usuario_acessos'
+        unique_together = [
+            ('usuario', 'contabilidade', 'contrato'),
+            ('usuario', 'contabilidade', 'empresa_cnpj'),
+        ]
+        indexes = [
+            models.Index(fields=['usuario', 'ativo', 'data_inicio']),
+            models.Index(fields=['contabilidade', 'ativo', 'data_inicio']),
+            models.Index(fields=['role', 'ativo']),
+            models.Index(fields=['data_inicio', 'data_fim']),
+            models.Index(fields=['empresa_cnpj', 'ativo']),
+        ]
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        escopo = ""
+        if self.contrato:
+            escopo = f" (Contrato: {self.contrato.id})"
+        elif self.empresa_cnpj:
+            escopo = f" (Empresa: {self.empresa_cnpj})"
+        
+        return f"{self.usuario.username} → {self.contabilidade.razao_social}{escopo}"
+    
+    @property
+    def esta_vencido(self):
+        """Verifica se o acesso está vencido"""
+        if self.data_fim and self.data_fim < timezone.now().date():
+            return True
+        return False
+    
+    @property
+    def esta_ativo(self):
+        """Verifica se o acesso está ativo e dentro da validade"""
+        if not self.ativo:
+            return False
+        if self.esta_vencido:
+            return False
+        if self.data_inicio > timezone.now().date():
+            return False
+        return True
+    
+    def tem_acesso_modulo(self, modulo):
+        """Verifica se tem acesso a um módulo específico"""
+        return modulo in self.modulos_acesso
+    
+    def tem_acesso_contrato(self, contrato_id):
+        """Verifica se tem acesso a um contrato específico"""
+        if not self.contrato:
+            return True  # Acesso total à contabilidade
+        return str(self.contrato.id) == str(contrato_id)
+    
+    def tem_acesso_empresa(self, cnpj):
+        """Verifica se tem acesso a uma empresa específica"""
+        if not self.empresa_cnpj:
+            return True  # Acesso total à contabilidade
+        return self.empresa_cnpj == cnpj
+    
+    def ativar(self):
+        """Ativa o acesso"""
+        self.ativo = True
+        self.save()
+    
+    def desativar(self):
+        """Desativa o acesso"""
+        self.ativo = False
+        self.save()
+    
+    def estender_vigencia(self, nova_data_fim):
+        """Estende a vigência do acesso"""
+        self.data_fim = nova_data_fim
+        self.save()

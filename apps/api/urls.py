@@ -36,4 +36,6 @@ urlpatterns = [
     path('gestao/', include('apps.api.gestao.urls')),
     path('dashboards/', include('apps.api.dashboards.urls')),
     path('export/', include('apps.api.export.urls')),
+    path('administracao/', include('apps.api.administracao.urls')),
+    path('billing/', include('apps.api.billing.urls')),
 ]

@@ -247,6 +247,50 @@ class Contrato(models.Model):
     dia_vencimento = models.IntegerField(_('Dia do Vencimento da Fatura'), null=True, blank=True)
     valor_honorario = models.DecimalField(_('Valor do Honorário'), max_digits=15, decimal_places=2, default=0)
     
+    # Plano e serviços contratados
+    plano_servico = models.CharField(
+        _('Plano de Serviço'), 
+        max_length=50, 
+        blank=True, 
+        null=True,
+        help_text="Código do plano de serviço contratado"
+    )
+    modulos_contratados = models.JSONField(
+        _('Módulos Contratados'), 
+        default=list,
+        help_text="Lista de módulos contratados para este cliente"
+    )
+    limites_usuarios = models.IntegerField(
+        _('Limite de Usuários'), 
+        default=1,
+        help_text="Limite de usuários que podem acessar este cliente"
+    )
+    limites_empresas = models.IntegerField(
+        _('Limite de Empresas'), 
+        default=1,
+        help_text="Limite de empresas que este cliente pode gerenciar"
+    )
+    
+    # Status de cobrança
+    status_cobranca = models.CharField(
+        _('Status de Cobrança'), 
+        max_length=20, 
+        default='ativo',
+        choices=[
+            ('ativo', 'Ativo'),
+            ('inadimplente', 'Inadimplente'),
+            ('suspenso', 'Suspenso'),
+            ('cancelado', 'Cancelado'),
+        ],
+        db_index=True
+    )
+    motivo_cancelamento = models.CharField(
+        _('Motivo do Cancelamento'), 
+        max_length=255, 
+        blank=True, 
+        null=True
+    )
+    
     ativo = models.BooleanField(_('Ativo'), default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

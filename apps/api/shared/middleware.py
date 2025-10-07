@@ -1,138 +1,194 @@
 """
-Middleware Multitenant com Regra de Ouro
-
-Aplica automaticamente a Regra de Ouro para isolamento multitenant
-em todas as requisições da API.
+Middleware para gerenciamento de contexto multi-tenant
 """
 
-from django.core.cache import cache
-from django.conf import settings
-from apps.core.models import Contabilidade
-from apps.pessoas.models import Contrato
+from django.utils.deprecation import MiddlewareMixin
+from django.core.exceptions import PermissionDenied
+from django.utils import timezone
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-class MultitenantMiddleware:
+class MultiTenantContextMiddleware(MiddlewareMixin):
     """
-    Middleware que aplica automaticamente a Regra de Ouro
-    para isolamento multitenant em todas as requisições
+    Middleware que gerencia o contexto multi-tenant
     """
     
-    def __init__(self, get_response):
-        self.get_response = get_response
-        self.cache_key = 'historical_contabilidade_map'
-        self.cache_timeout = 300  # 5 minutos
-    
-    def __call__(self, request):
-        if request.user.is_authenticated:
-            # Aplicar filtros automáticos por contabilidade
-            request.contabilidade = request.user.contabilidade
-            
-            # Aplicar Regra de Ouro se necessário
-            if hasattr(request, 'data_evento') and request.data_evento:
-                request.contabilidade = self.aplicar_regra_ouro(
-                    request.user.contabilidade,
-                    request.data_evento
-                )
-        
-        response = self.get_response(request)
-        return response
-    
-    def aplicar_regra_ouro(self, contabilidade_padrao, data_evento):
+    def process_request(self, request):
         """
-        Aplica a Regra de Ouro para identificar a contabilidade correta:
-        1. Busca no cache o mapa histórico de contabilidades
-        2. Se não estiver em cache, constrói o mapa
-        3. Aplica a regra de ouro para a data do evento
+        Processa a requisição e define o contexto multi-tenant
+        """
+        if not request.user.is_authenticated:
+            return
+        
+        # Obter contabilidade do contexto
+        contabilidade = self.get_contabilidade_from_request(request)
+        if contabilidade:
+            # Verificar se o usuário tem acesso à contabilidade
+            if self.verificar_acesso_contabilidade(request.user, contabilidade):
+                request.contabilidade = contabilidade
+                # Atualizar última contabilidade acessada
+                self.atualizar_ultima_contabilidade(request.user, contabilidade)
+            else:
+                raise PermissionDenied("Usuário não tem acesso à contabilidade especificada")
+        else:
+            # Usar contabilidade padrão do usuário
+            if hasattr(request.user, 'contabilidade') and request.user.contabilidade:
+                request.contabilidade = request.user.contabilidade
+            else:
+                # Tentar obter a última contabilidade acessada
+                if hasattr(request.user, 'ultima_contabilidade') and request.user.ultima_contabilidade:
+                    if self.verificar_acesso_contabilidade(request.user, request.user.ultima_contabilidade):
+                        request.contabilidade = request.user.ultima_contabilidade
+                    else:
+                        # Buscar primeira contabilidade acessível
+                        contabilidade_acessivel = self.get_primeira_contabilidade_acessivel(request.user)
+                        if contabilidade_acessivel:
+                            request.contabilidade = contabilidade_acessivel
+                        else:
+                            raise PermissionDenied("Usuário não tem acesso a nenhuma contabilidade")
+    
+    def get_contabilidade_from_request(self, request):
+        """
+        Extrai a contabilidade do request
+        """
+        # Tentar obter do header X-Contabilidade-ID
+        contabilidade_id = request.META.get('HTTP_X_CONTABILIDADE_ID')
+        if contabilidade_id:
+            try:
+                from apps.core.models import Contabilidade
+                return Contabilidade.objects.get(id=contabilidade_id)
+            except Contabilidade.DoesNotExist:
+                logger.warning(f"Contabilidade {contabilidade_id} não encontrada")
+                return None
+        
+        # Tentar obter do parâmetro de query
+        contabilidade_id = request.GET.get('contabilidade_id')
+        if contabilidade_id:
+            try:
+                from apps.core.models import Contabilidade
+                return Contabilidade.objects.get(id=contabilidade_id)
+            except Contabilidade.DoesNotExist:
+                logger.warning(f"Contabilidade {contabilidade_id} não encontrada")
+                return None
+        
+        return None
+    
+    def verificar_acesso_contabilidade(self, user, contabilidade):
+        """
+        Verifica se o usuário tem acesso à contabilidade
         """
         try:
-            # Buscar mapa histórico no cache
-            historical_map = cache.get(self.cache_key)
+            from apps.core.models import UsuarioAcesso
             
-            if not historical_map:
-                historical_map = self.build_historical_contabilidade_map()
-                cache.set(self.cache_key, historical_map, self.cache_timeout)
+            return UsuarioAcesso.objects.filter(
+                usuario=user,
+                contabilidade=contabilidade,
+                ativo=True,
+                data_inicio__lte=timezone.now().date(),
+                data_fim__isnull=True
+            ).exists() or UsuarioAcesso.objects.filter(
+                usuario=user,
+                contabilidade=contabilidade,
+                ativo=True,
+                data_inicio__lte=timezone.now().date(),
+                data_fim__gte=timezone.now().date()
+            ).exists()
             
-            # Aplicar regra de ouro
-            return self.get_contabilidade_for_date_optimized(
-                historical_map, 
-                contabilidade_padrao, 
-                data_evento
+        except Exception as e:
+            logger.error(f"Erro ao verificar acesso à contabilidade: {e}")
+            return False
+    
+    def atualizar_ultima_contabilidade(self, user, contabilidade):
+        """
+        Atualiza a última contabilidade acessada pelo usuário
+        """
+        try:
+            if hasattr(user, 'ultima_contabilidade'):
+                user.ultima_contabilidade = contabilidade
+                user.save(update_fields=['ultima_contabilidade'])
+        except Exception as e:
+            logger.error(f"Erro ao atualizar última contabilidade: {e}")
+    
+    def get_primeira_contabilidade_acessivel(self, user):
+        """
+        Obtém a primeira contabilidade acessível pelo usuário
+        """
+        try:
+            from apps.core.models import UsuarioAcesso
+            
+            acesso = UsuarioAcesso.objects.filter(
+                usuario=user,
+                ativo=True,
+                data_inicio__lte=timezone.now().date(),
+                data_fim__isnull=True
+            ).first()
+            
+            if not acesso:
+                acesso = UsuarioAcesso.objects.filter(
+                    usuario=user,
+                    ativo=True,
+                    data_inicio__lte=timezone.now().date(),
+                    data_fim__gte=timezone.now().date()
+                ).first()
+            
+            return acesso.contabilidade if acesso else None
+            
+        except Exception as e:
+            logger.error(f"Erro ao obter primeira contabilidade acessível: {e}")
+            return None
+
+
+class TenantAuditMiddleware(MiddlewareMixin):
+    """
+    Middleware para auditoria de trocas de tenant
+    """
+    
+    def process_request(self, request):
+        """
+        Registra a troca de tenant para auditoria
+        """
+        if not request.user.is_authenticated:
+            return
+        
+        # Verificar se houve troca de tenant
+        if hasattr(request, 'contabilidade') and request.contabilidade:
+            if hasattr(request.user, 'contabilidade') and request.user.contabilidade:
+                if request.contabilidade != request.user.contabilidade:
+                    self.registrar_troca_tenant(request.user, request.user.contabilidade, request.contabilidade)
+    
+    def registrar_troca_tenant(self, user, contabilidade_anterior, contabilidade_nova):
+        """
+        Registra a troca de tenant na auditoria
+        """
+        try:
+            from apps.administracao.models import AuditoriaSistema
+            
+            AuditoriaSistema.objects.create(
+                usuario=user,
+                contabilidade=contabilidade_nova,
+                acao='troca_tenant',
+                tabela_afetada='core_usuarios',
+                registro_id=str(user.id),
+                dados_anteriores={
+                    'contabilidade_id': str(contabilidade_anterior.id) if contabilidade_anterior else None,
+                    'contabilidade_razao_social': contabilidade_anterior.razao_social if contabilidade_anterior else None
+                },
+                dados_novos={
+                    'contabilidade_id': str(contabilidade_nova.id),
+                    'contabilidade_razao_social': contabilidade_nova.razao_social
+                },
+                ip_address=self.get_client_ip(user)
             )
             
         except Exception as e:
-            logger.error(f"Erro ao aplicar Regra de Ouro: {e}")
-            return contabilidade_padrao
+            logger.error(f"Erro ao registrar troca de tenant: {e}")
     
-    def build_historical_contabilidade_map(self):
+    def get_client_ip(self, user):
         """
-        Constrói o mapa histórico de contabilidades por CNPJ/CPF
-        Reutiliza a lógica dos ETLs
+        Obtém o IP do cliente
         """
-        historical_map = {}
-        
-        try:
-            contratos = Contrato.objects.select_related('contabilidade', 'content_type').all()
-            
-            for contrato in contratos:
-                if contrato.content_type.model == 'pessoajuridica':
-                    cnpj_limpo = self.limpar_documento(contrato.empresa.cnpj)
-                    data_termino = contrato.data_fim or settings.DEFAULT_END_DATE
-                    
-                    if cnpj_limpo not in historical_map:
-                        historical_map[cnpj_limpo] = []
-                    
-                    historical_map[cnpj_limpo].append(
-                        (contrato.data_inicio, data_termino, contrato.contabilidade)
-                    )
-            
-            # Ordenar por data de início
-            for cnpj in historical_map:
-                historical_map[cnpj].sort(key=lambda x: x[0])
-            
-            logger.info(f"Mapa histórico construído com {len(historical_map)} empresas")
-            return historical_map
-            
-        except Exception as e:
-            logger.error(f"Erro ao construir mapa histórico: {e}")
-            return {}
-    
-    def get_contabilidade_for_date_optimized(self, historical_map, contabilidade_padrao, data_evento):
-        """
-        Versão otimizada da Regra de Ouro para uso no middleware
-        """
-        try:
-            # Se não há data de evento, retorna contabilidade padrão
-            if not data_evento:
-                return contabilidade_padrao
-            
-            # Buscar contabilidade no mapa histórico
-            for cnpj, contratos in historical_map.items():
-                for data_inicio, data_termino, contabilidade in contratos:
-                    if data_inicio <= data_evento <= data_termino:
-                        return contabilidade
-            
-            # Se não encontrou, retorna contabilidade padrão
-            return contabilidade_padrao
-            
-        except Exception as e:
-            logger.error(f"Erro na Regra de Ouro otimizada: {e}")
-            return contabilidade_padrao
-    
-    def limpar_documento(self, documento):
-        """
-        Limpa e formata CNPJ/CPF para busca no mapa histórico
-        """
-        if not documento:
-            return None
-        
-        # Remove caracteres não numéricos
-        documento_limpo = ''.join(filter(str.isdigit, str(documento)))
-        
-        # Validação básica
-        if len(documento_limpo) not in [11, 14]:  # CPF ou CNPJ
-            return None
-        
-        return documento_limpo
+        # Implementar lógica para obter IP do request
+        # Por enquanto, retornar None
+        return None

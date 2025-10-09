@@ -27,7 +27,7 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-fallback-key-for-dev'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=lambda v: [s.strip() for s in v.split(',')])
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,0.0.0.0', cast=lambda v: [s.strip() for s in v.split(',')])
 
 
 # Application definition
@@ -177,11 +177,61 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 50,
 }
 
-# CORS
+# =============================================================================
+# CONFIGURAÇÕES CORS E SEGURANÇA
+# =============================================================================
+
+# CORS - Configuração para desenvolvimento
 CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",      # GESTK Admin App
+    "http://127.0.0.1:3000",      # GESTK Admin App (alternativo)
+    "http://localhost:3001",      # GESTK Client App
+    "http://127.0.0.1:3001",      # GESTK Client App (alternativo)
+    "http://localhost:3002",      # GESTK Extra App (se houver)
+    "http://127.0.0.1:3002",      # GESTK Extra App (alternativo)
+]
+
+# Headers personalizados do GESTK
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'x-contabilidade-id',  # Para multi-tenancy
+    'x-app-context',       # Para contexto da aplicação
+]
+
+# Métodos permitidos
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+# Permitir cookies (se necessário)
+CORS_ALLOW_CREDENTIALS = True
+
+# CSRF - Configuração
+CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "http://localhost:3002",
+    "http://127.0.0.1:3002",
 ]
+
+# Configuração de sessão
+SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_HTTPONLY = True
 
 # =============================================================================
 # CONFIGURAÇÃO JWT (JSON Web Token)
@@ -254,4 +304,19 @@ REST_FRAMEWORK = {
         'rest_framework.parsers.FormParser',
     ],
 }
+
+# Desabilitar CSRF para APIs JWT (APIs REST)
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "http://localhost:3002",
+    "http://127.0.0.1:3002",
+]
+
+# Configuração de CSRF para APIs
+CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_HTTPONLY = False  # Para permitir acesso via JavaScript
+CSRF_USE_SESSIONS = False  # Para APIs JWT
 

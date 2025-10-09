@@ -62,12 +62,33 @@ class DemograficoViewSet(viewsets.ViewSet):
             
             turnover_anual = (demissões_ano / max(total_colaboradores, 1)) * 100
             
-            # Calcular média de idade (simulado)
-            media_idade = 35.0  # Simulado
+            # Buscar funcionários da contabilidade
+            funcionarios = Funcionario.objects.filter(contabilidade=contabilidade)
             
-            # Calcular distribuição por gênero (simulado)
-            percentual_masculino = 60.0  # Simulado
-            percentual_feminino = 40.0   # Simulado
+            # Calcular média de idade real
+            funcionarios_com_idade = funcionarios.filter(data_nascimento__isnull=False)
+            if funcionarios_com_idade.exists():
+                from datetime import date
+                hoje = date.today()
+                idades = []
+                for func in funcionarios_com_idade:
+                    if func.data_nascimento:
+                        idade = hoje.year - func.data_nascimento.year - ((hoje.month, hoje.day) < (func.data_nascimento.month, func.data_nascimento.day))
+                        idades.append(idade)
+                media_idade = sum(idades) / len(idades) if idades else 35.0
+            else:
+                media_idade = 35.0
+            
+            # Calcular distribuição por gênero real
+            total_funcionarios = funcionarios.count()
+            if total_funcionarios > 0:
+                masculino_count = funcionarios.filter(genero='M').count()
+                feminino_count = funcionarios.filter(genero='F').count()
+                percentual_masculino = (masculino_count / total_funcionarios) * 100
+                percentual_feminino = (feminino_count / total_funcionarios) * 100
+            else:
+                percentual_masculino = 0.0
+                percentual_feminino = 0.0
 
             data = {
                 'total_colaboradores': total_colaboradores,
@@ -99,26 +120,26 @@ class DemograficoViewSet(viewsets.ViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Simular dados de evolução mensal dos últimos 12 meses
+            # Dados reais de evolução mensal dos últimos 12 meses
             evolucao_data = []
             for i in range(12):
                 month = timezone.now().date() - timedelta(days=30 * i)
                 month_str = month.strftime('%Y-%m')
                 
-                # Simular dados baseados nos funcionários existentes
-                total_colaboradores = Funcionario.objects.filter(
-                    contabilidade=contabilidade,
+                # Dados reais baseados nos vínculos empregatícios
+                total_colaboradores = VinculoEmpregaticio.objects.filter(
+                    funcionario__contabilidade=contabilidade,
                     data_admissao__lte=month
                 ).count()
                 
-                admissões = Funcionario.objects.filter(
-                    contabilidade=contabilidade,
+                admissões = VinculoEmpregaticio.objects.filter(
+                    funcionario__contabilidade=contabilidade,
                     data_admissao__year=month.year,
                     data_admissao__month=month.month
                 ).count()
                 
-                demissões = Funcionario.objects.filter(
-                    contabilidade=contabilidade,
+                demissões = VinculoEmpregaticio.objects.filter(
+                    funcionario__contabilidade=contabilidade,
                     data_demissao__year=month.year,
                     data_demissao__month=month.month
                 ).count()
@@ -158,37 +179,83 @@ class DemograficoViewSet(viewsets.ViewSet):
             funcionarios = Funcionario.objects.filter(contabilidade=contabilidade, ativo=True)
             total_funcionarios = funcionarios.count()
 
-            # Distribuição etária (simulada)
-            distribuicao_etaria = [
-                {'faixa_etaria': '18-25', 'total_colaboradores': int(total_funcionarios * 0.15), 'percentual': 15.0},
-                {'faixa_etaria': '26-35', 'total_colaboradores': int(total_funcionarios * 0.35), 'percentual': 35.0},
-                {'faixa_etaria': '36-45', 'total_colaboradores': int(total_funcionarios * 0.30), 'percentual': 30.0},
-                {'faixa_etaria': '46-55', 'total_colaboradores': int(total_funcionarios * 0.15), 'percentual': 15.0},
-                {'faixa_etaria': '56+', 'total_colaboradores': int(total_funcionarios * 0.05), 'percentual': 5.0}
+            # Distribuição etária real
+            from datetime import date
+            hoje = date.today()
+            distribuicao_etaria = []
+            faixas_etarias = [
+                ('18-25', 18, 25),
+                ('26-35', 26, 35),
+                ('36-45', 36, 45),
+                ('46-55', 46, 55),
+                ('56+', 56, 999)
             ]
+            
+            for faixa, min_idade, max_idade in faixas_etarias:
+                count = 0
+                for func in funcionarios.filter(data_nascimento__isnull=False):
+                    if func.data_nascimento:
+                        idade = hoje.year - func.data_nascimento.year - ((hoje.month, hoje.day) < (func.data_nascimento.month, func.data_nascimento.day))
+                        if min_idade <= idade <= max_idade:
+                            count += 1
+                
+                percentual = (count / total_funcionarios * 100) if total_funcionarios > 0 else 0
+                distribuicao_etaria.append({
+                    'faixa_etaria': faixa,
+                    'total_colaboradores': count,
+                    'percentual': round(percentual, 2)
+                })
 
-            # Distribuição por escolaridade (simulada)
-            distribuicao_escolaridade = [
-                {'escolaridade': 'Ensino Fundamental', 'total_colaboradores': int(total_funcionarios * 0.10), 'percentual': 10.0},
-                {'escolaridade': 'Ensino Médio', 'total_colaboradores': int(total_funcionarios * 0.40), 'percentual': 40.0},
-                {'escolaridade': 'Ensino Superior', 'total_colaboradores': int(total_funcionarios * 0.35), 'percentual': 35.0},
-                {'escolaridade': 'Pós-graduação', 'total_colaboradores': int(total_funcionarios * 0.15), 'percentual': 15.0}
+            # Distribuição por escolaridade real
+            distribuicao_escolaridade = []
+            escolaridades = [
+                ('fundamental', 'Ensino Fundamental'),
+                ('medio', 'Ensino Médio'),
+                ('superior', 'Ensino Superior'),
+                ('pos', 'Pós-graduação')
             ]
+            
+            for codigo, nome in escolaridades:
+                count = funcionarios.filter(escolaridade=codigo).count()
+                percentual = (count / total_funcionarios * 100) if total_funcionarios > 0 else 0
+                distribuicao_escolaridade.append({
+                    'escolaridade': nome,
+                    'total_colaboradores': count,
+                    'percentual': round(percentual, 2)
+                })
 
-            # Distribuição por cargo (simulada)
-            distribuicao_cargo = [
-                {'cargo': 'Auxiliar', 'total_colaboradores': int(total_funcionarios * 0.30), 'percentual': 30.0},
-                {'cargo': 'Assistente', 'total_colaboradores': int(total_funcionarios * 0.25), 'percentual': 25.0},
-                {'cargo': 'Analista', 'total_colaboradores': int(total_funcionarios * 0.20), 'percentual': 20.0},
-                {'cargo': 'Coordenador', 'total_colaboradores': int(total_funcionarios * 0.15), 'percentual': 15.0},
-                {'cargo': 'Gerente', 'total_colaboradores': int(total_funcionarios * 0.10), 'percentual': 10.0}
-            ]
+            # Distribuição por cargo real
+            distribuicao_cargo = []
+            vinculos_ativos = VinculoEmpregaticio.objects.filter(
+                funcionario__contabilidade=contabilidade,
+                ativo=True
+            ).select_related('cargo')
+            
+            cargos_data = {}
+            for vinculo in vinculos_ativos:
+                cargo_nome = vinculo.cargo.nome if vinculo.cargo else 'Sem Cargo'
+                cargos_data[cargo_nome] = cargos_data.get(cargo_nome, 0) + 1
+            
+            for cargo, count in cargos_data.items():
+                percentual = (count / len(vinculos_ativos) * 100) if len(vinculos_ativos) > 0 else 0
+                distribuicao_cargo.append({
+                    'cargo': cargo,
+                    'total_colaboradores': count,
+                    'percentual': round(percentual, 2)
+                })
 
-            # Distribuição por gênero (simulada)
-            distribuicao_genero = [
-                {'genero': 'Masculino', 'total_colaboradores': int(total_funcionarios * 0.60), 'percentual': 60.0},
-                {'genero': 'Feminino', 'total_colaboradores': int(total_funcionarios * 0.40), 'percentual': 40.0}
-            ]
+            # Distribuição por gênero real
+            distribuicao_genero = []
+            generos = [('M', 'Masculino'), ('F', 'Feminino')]
+            
+            for codigo, nome in generos:
+                count = funcionarios.filter(genero=codigo).count()
+                percentual = (count / total_funcionarios * 100) if total_funcionarios > 0 else 0
+                distribuicao_genero.append({
+                    'genero': nome,
+                    'total_colaboradores': count,
+                    'percentual': round(percentual, 2)
+                })
 
             data = {
                 'etaria': distribuicao_etaria,

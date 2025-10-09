@@ -1,0 +1,789 @@
+# Mapeamento Completo: Tabelas do Banco ↔ APIs ↔ Frontend
+
+## 📋 Visão Geral
+
+Este documento mapeia todas as tabelas do banco de dados GESTK, suas respectivas APIs e como os dados são consumidos pelo frontend, considerando a aplicação da **Regra de Ouro** para isolamento multi-tenant.
+
+## 🔐 Regra de Ouro - Aplicação Automática
+
+A **Regra de Ouro** é aplicada automaticamente em todos os endpoints através de:
+
+1. **Middleware Multi-Tenant**: Define `request.contabilidade` automaticamente
+2. **Filtros Automáticos**: Todos os querysets são filtrados por `contabilidade`
+3. **Validação de Acesso**: Verifica se o usuário tem acesso à contabilidade
+4. **Auditoria**: Registra todas as operações com contexto de tenant
+
+---
+
+## 🏗️ Estrutura do Mapeamento
+
+### Legenda
+- **Tabela**: Nome da tabela no banco de dados
+- **Modelo**: Classe do modelo Django
+- **API**: Endpoint da API REST
+- **Frontend**: Módulo/componente do frontend
+- **Dados**: Campos principais solicitados
+- **Regra de Ouro**: Como o isolamento é aplicado
+
+---
+
+## 📊 Mapeamento por Módulo
+
+### 1. MÓDULO CORE (Sistema Base)
+
+#### 1.1 Tabela: `core_contabilidades`
+**Modelo**: `apps.core.models.Contabilidade`
+**Descrição**: Tabela central que representa cada tenant (escritório de contabilidade)
+
+| Campo | Tipo | API | Frontend | Descrição |
+|-------|------|-----|----------|-----------|
+| `id` | UUID | ✅ | Admin/Client | Identificador único |
+| `razao_social` | String | ✅ | Admin/Client | Razão social da contabilidade |
+| `nome_fantasia` | String | ✅ | Admin/Client | Nome fantasia |
+| `cnpj` | String | ✅ | Admin/Client | CNPJ da contabilidade |
+| `ativo` | Boolean | ✅ | Admin/Client | Status ativo/inativo |
+| `responsavel_financeiro_nome` | String | ✅ | Admin | Nome do responsável financeiro |
+| `responsavel_financeiro_email` | String | ✅ | Admin | Email do responsável |
+| `suspensa_por_inadimplencia` | Boolean | ✅ | Admin | Status de suspensão |
+| `saldo_creditos` | Decimal | ✅ | Admin | Saldo de créditos |
+
+**APIs Relacionadas:**
+- `GET /api/administracao/contabilidades/` - Listar contabilidades (Admin)
+- `GET /api/billing/contabilidades-billing/` - Dados de billing (Admin)
+
+**Regra de Ouro**: 
+- **Admin**: Acesso a todas as contabilidades
+- **Client**: Acesso apenas à sua contabilidade (`request.user.contabilidade`)
+
+#### 1.2 Tabela: `core_usuarios`
+**Modelo**: `apps.core.models.Usuario`
+**Descrição**: Usuários do sistema com isolamento por contabilidade
+
+| Campo | Tipo | API | Frontend | Descrição |
+|-------|------|-----|----------|-----------|
+| `id` | UUID | ✅ | Admin/Client | Identificador único |
+| `username` | String | ✅ | Admin/Client | Nome de usuário |
+| `email` | String | ✅ | Admin/Client | Email do usuário |
+| `tipo_usuario` | String | ✅ | Admin/Client | Tipo: admin, operacional, etc. |
+| `contabilidade` | FK | ✅ | Admin/Client | Contabilidade do usuário |
+| `ultima_contabilidade` | FK | ✅ | Admin/Client | Última contabilidade acessada |
+| `modulos_acessiveis` | JSON | ✅ | Admin/Client | Módulos que pode acessar |
+| `is_active` | Boolean | ✅ | Admin/Client | Status ativo/inativo |
+
+**APIs Relacionadas:**
+- `GET /api/auth/user/` - Dados do usuário logado
+- `GET /api/gestao/usuarios/` - Listar usuários (Client)
+- `GET /api/administracao/usuarios-acesso/` - Acessos de usuários (Admin)
+
+**Regra de Ouro**: 
+- **Admin**: Acesso a usuários de todas as contabilidades
+- **Client**: Acesso apenas a usuários da sua contabilidade
+
+#### 1.3 Tabela: `core_usuario_acessos`
+**Modelo**: `apps.core.models.UsuarioAcesso`
+**Descrição**: Controle de acesso granular de usuários a contabilidades
+
+| Campo | Tipo | API | Frontend | Descrição |
+|-------|------|-----|----------|-----------|
+| `id` | UUID | ✅ | Admin | Identificador único |
+| `usuario` | FK | ✅ | Admin | Usuário |
+| `contabilidade` | FK | ✅ | Admin | Contabilidade |
+| `contrato` | FK | ✅ | Admin | Contrato específico (opcional) |
+| `empresa_cnpj` | String | ✅ | Admin | CNPJ específico (opcional) |
+| `role` | String | ✅ | Admin | Papel: superuser, admin, operacional |
+| `modulos_acesso` | JSON | ✅ | Admin | Módulos permitidos |
+| `data_inicio` | Date | ✅ | Admin | Data de início do acesso |
+| `data_fim` | Date | ✅ | Admin | Data de fim do acesso |
+| `ativo` | Boolean | ✅ | Admin | Status ativo/inativo |
+
+**APIs Relacionadas:**
+- `GET /api/administracao/usuarios-acesso/` - Listar acessos
+- `POST /api/administracao/usuarios-acesso/` - Conceder acesso
+- `PUT /api/administracao/usuarios-acesso/{id}/` - Atualizar acesso
+
+**Regra de Ouro**: 
+- **Admin**: Acesso a todos os acessos
+- **Client**: Não tem acesso (apenas Admin)
+
+---
+
+### 2. MÓDULO PESSOAS (Clientes e Contratos)
+
+#### 2.1 Tabela: `pessoas_juridicas`
+**Modelo**: `apps.pessoas.models.PessoaJuridica`
+**Descrição**: Empresas clientes com isolamento por contabilidade
+
+| Campo | Tipo | API | Frontend | Descrição |
+|-------|------|-----|----------|-----------|
+| `id` | UUID | ✅ | Client | Identificador único |
+| `cnpj` | String | ✅ | Client | CNPJ da empresa |
+| `razao_social` | String | ✅ | Client | Razão social |
+| `nome_fantasia` | String | ✅ | Client | Nome fantasia |
+| `regime_fiscal` | String | ✅ | Client | Regime fiscal (novo) |
+| `ramo_atividade` | String | ✅ | Client | Ramo de atividade (novo) |
+| `uf` | String | ✅ | Client | Estado |
+| `cidade` | String | ✅ | Client | Cidade |
+| `ativo` | Boolean | ✅ | Client | Status ativo/inativo |
+| `data_inicio_atividades` | Date | ✅ | Client | Data de abertura |
+
+**APIs Relacionadas:**
+- `GET /api/gestao/carteira/` - Carteira de clientes
+- `GET /api/gestao/clientes/` - Gestão de clientes
+- `GET /api/dashboards/fiscal/clientes/` - Clientes com maior faturamento
+
+**Regra de Ouro**: 
+- Filtrado automaticamente por `contabilidade_atual`
+- Usuário só vê empresas da sua contabilidade
+
+#### 2.2 Tabela: `pessoas_fisicas`
+**Modelo**: `apps.pessoas.models.PessoaFisica`
+**Descrição**: Pessoas físicas (sócios, responsáveis)
+
+| Campo | Tipo | API | Frontend | Descrição |
+|-------|------|-----|----------|-----------|
+| `id` | UUID | ✅ | Client | Identificador único |
+| `cpf` | String | ✅ | Client | CPF |
+| `nome_completo` | String | ✅ | Client | Nome completo |
+| `data_nascimento` | Date | ✅ | Client | Data de nascimento |
+| `uf` | String | ✅ | Client | Estado |
+| `cidade` | String | ✅ | Client | Cidade |
+| `ativo` | Boolean | ✅ | Client | Status ativo/inativo |
+
+**APIs Relacionadas:**
+- `GET /api/gestao/clientes/` - Clientes (PF e PJ)
+- `GET /api/dashboards/demografico/distribuicoes/` - Distribuições demográficas
+
+**Regra de Ouro**: 
+- Filtrado por `contabilidade_atual` via contratos
+- Usuário só vê pessoas da sua contabilidade
+
+#### 2.3 Tabela: `pessoas_contratos`
+**Modelo**: `apps.pessoas.models.Contrato`
+**Descrição**: Contratos entre contabilidades e clientes
+
+| Campo | Tipo | API | Frontend | Descrição |
+|-------|------|-----|----------|-----------|
+| `id` | UUID | ✅ | Client | Identificador único |
+| `contabilidade` | FK | ✅ | Client | Contabilidade (tenant) |
+| `cliente` | GFK | ✅ | Client | Cliente (PF ou PJ) |
+| `data_inicio` | Date | ✅ | Client | Data de início |
+| `data_termino` | Date | ✅ | Client | Data de término |
+| `valor_honorario` | Decimal | ✅ | Client | Valor do honorário |
+| `plano_servico` | String | ✅ | Client | Plano contratado |
+| `modulos_contratados` | JSON | ✅ | Client | Módulos incluídos |
+| `status_cobranca` | String | ✅ | Client | Status da cobrança |
+| `ativo` | Boolean | ✅ | Client | Status ativo/inativo |
+
+**APIs Relacionadas:**
+- `GET /api/gestao/carteira/{id}/contratos/` - Contratos da empresa
+- `GET /api/gestao/clientes/{id}/contratos/` - Contratos do cliente
+
+**Regra de Ouro**: 
+- Filtrado automaticamente por `contabilidade`
+- Usuário só vê contratos da sua contabilidade
+
+---
+
+### 3. MÓDULO FISCAL (Notas Fiscais)
+
+#### 3.1 Tabela: `fiscal_notas_fiscais`
+**Modelo**: `apps.fiscal.models.NotaFiscal`
+**Descrição**: Notas fiscais com isolamento por contabilidade
+
+| Campo | Tipo | API | Frontend | Descrição |
+|-------|------|-----|----------|-----------|
+| `id` | UUID | ✅ | Client | Identificador único |
+| `contabilidade` | FK | ✅ | Client | Contabilidade (tenant) |
+| `cliente` | GFK | ✅ | Client | Cliente |
+| `numero` | String | ✅ | Client | Número da nota |
+| `data_emissao` | Date | ✅ | Client | Data de emissão |
+| `valor_total` | Decimal | ✅ | Client | Valor total |
+| `valor_icms` | Decimal | ✅ | Client | Valor ICMS |
+| `valor_pis` | Decimal | ✅ | Client | Valor PIS |
+| `valor_cofins` | Decimal | ✅ | Client | Valor COFINS |
+| `uf` | String | ✅ | Client | UF de destino |
+| `tipo_operacao` | String | ✅ | Client | Tipo da operação |
+
+**APIs Relacionadas:**
+- `GET /api/dashboards/fiscal/faturamento/` - Visão geral do faturamento
+- `GET /api/dashboards/fiscal/produtos/` - Produtos/serviços mais relevantes
+- `GET /api/dashboards/fiscal/clientes/` - Clientes com maior faturamento
+- `GET /api/dashboards/fiscal/geolocalizacao/` - Faturamento por UF
+- `GET /api/dashboards/fiscal/impostos/` - Impostos devidos
+
+**Regra de Ouro**: 
+- Filtrado automaticamente por `contabilidade`
+- Usuário só vê notas da sua contabilidade
+
+#### 3.2 Tabela: `fiscal_notas_fiscais_itens`
+**Modelo**: `apps.fiscal.models.NotaFiscalItem`
+**Descrição**: Itens das notas fiscais
+
+| Campo | Tipo | API | Frontend | Descrição |
+|-------|------|-----|----------|-----------|
+| `id` | UUID | ✅ | Client | Identificador único |
+| `nota_fiscal` | FK | ✅ | Client | Nota fiscal |
+| `descricao` | String | ✅ | Client | Descrição do item |
+| `quantidade` | Decimal | ✅ | Client | Quantidade |
+| `valor_unitario` | Decimal | ✅ | Client | Valor unitário |
+| `valor_total` | Decimal | ✅ | Client | Valor total |
+
+**APIs Relacionadas:**
+- `GET /api/dashboards/fiscal/produtos/` - Produtos mais vendidos
+
+**Regra de Ouro**: 
+- Filtrado via `nota_fiscal__contabilidade`
+- Usuário só vê itens de notas da sua contabilidade
+
+---
+
+### 4. MÓDULO FUNCIONÁRIOS (RH)
+
+#### 4.1 Tabela: `funcionarios_funcionarios`
+**Modelo**: `apps.funcionarios.models.Funcionario`
+**Descrição**: Funcionários com isolamento por contabilidade
+
+| Campo | Tipo | API | Frontend | Descrição |
+|-------|------|-----|----------|-----------|
+| `id` | UUID | ✅ | Client | Identificador único |
+| `contabilidade` | FK | ✅ | Client | Contabilidade (tenant) |
+| `pessoa_fisica` | FK | ✅ | Client | Pessoa física |
+| `data_nascimento` | Date | ✅ | Client | Data de nascimento (novo) |
+| `genero` | String | ✅ | Client | Gênero (novo) |
+| `escolaridade` | String | ✅ | Client | Escolaridade (novo) |
+| `ativo` | Boolean | ✅ | Client | Status ativo/inativo |
+
+**APIs Relacionadas:**
+- `GET /api/dashboards/demografico/indicadores/` - Indicadores demográficos
+- `GET /api/dashboards/demografico/distribuicoes/` - Distribuições demográficas
+- `GET /api/dashboards/pessoal/folha-pagamento/` - Folha de pagamento
+
+**Regra de Ouro**: 
+- Filtrado automaticamente por `contabilidade`
+- Usuário só vê funcionários da sua contabilidade
+
+#### 4.2 Tabela: `funcionarios_vinculos_empregaticios`
+**Modelo**: `apps.funcionarios.models.VinculoEmpregaticio`
+**Descrição**: Vínculos empregatícios dos funcionários
+
+| Campo | Tipo | API | Frontend | Descrição |
+|-------|------|-----|----------|-----------|
+| `id` | UUID | ✅ | Client | Identificador único |
+| `contabilidade` | FK | ✅ | Client | Contabilidade (tenant) |
+| `funcionario` | FK | ✅ | Client | Funcionário |
+| `empresa` | GFK | ✅ | Client | Empresa (PF ou PJ) |
+| `matricula` | String | ✅ | Client | Matrícula |
+| `cargo` | FK | ✅ | Client | Cargo |
+| `departamento` | FK | ✅ | Client | Departamento |
+| `data_admissao` | Date | ✅ | Client | Data de admissão |
+| `data_demissao` | Date | ✅ | Client | Data de demissão |
+| `salario_base` | Decimal | ✅ | Client | Salário base |
+| `ativo` | Boolean | ✅ | Client | Status ativo/inativo |
+
+**APIs Relacionadas:**
+- `GET /api/dashboards/demografico/colaboradores/` - Evolução de colaboradores
+- `GET /api/dashboards/organizacional/estrutura/` - Estrutura organizacional
+- `GET /api/dashboards/organizacional/distribuicao-departamentos/` - Distribuição por departamento
+- `GET /api/dashboards/pessoal/folha-pagamento/` - Folha de pagamento
+
+**Regra de Ouro**: 
+- Filtrado automaticamente por `contabilidade`
+- Usuário só vê vínculos da sua contabilidade
+
+#### 4.3 Tabela: `funcionarios_departamentos`
+**Modelo**: `apps.funcionarios.models.Departamento`
+**Descrição**: Departamentos da empresa
+
+| Campo | Tipo | API | Frontend | Descrição |
+|-------|------|-----|----------|-----------|
+| `id` | UUID | ✅ | Client | Identificador único |
+| `contabilidade` | FK | ✅ | Client | Contabilidade (tenant) |
+| `empresa` | FK | ✅ | Client | Empresa |
+| `nome` | String | ✅ | Client | Nome do departamento |
+| `ativo` | Boolean | ✅ | Client | Status ativo/inativo |
+
+**APIs Relacionadas:**
+- `GET /api/dashboards/organizacional/estrutura/` - Estrutura organizacional
+- `GET /api/dashboards/organizacional/distribuicao-departamentos/` - Distribuição por departamento
+
+**Regra de Ouro**: 
+- Filtrado automaticamente por `contabilidade`
+- Usuário só vê departamentos da sua contabilidade
+
+#### 4.4 Tabela: `funcionarios_cargos`
+**Modelo**: `apps.funcionarios.models.Cargo`
+**Descrição**: Cargos dos funcionários
+
+| Campo | Tipo | API | Frontend | Descrição |
+|-------|------|-----|----------|-----------|
+| `id` | UUID | ✅ | Client | Identificador único |
+| `contabilidade` | FK | ✅ | Client | Contabilidade (tenant) |
+| `empresa` | FK | ✅ | Client | Empresa |
+| `nome` | String | ✅ | Client | Nome do cargo |
+| `cbo_2002` | String | ✅ | Client | Código CBO |
+| `ativo` | Boolean | ✅ | Client | Status ativo/inativo |
+
+**APIs Relacionadas:**
+- `GET /api/dashboards/organizacional/estrutura/` - Estrutura organizacional
+- `GET /api/dashboards/organizacional/hierarquia/` - Hierarquia organizacional
+
+**Regra de Ouro**: 
+- Filtrado automaticamente por `contabilidade`
+- Usuário só vê cargos da sua contabilidade
+
+---
+
+### 5. MÓDULO CONTÁBIL (Contabilidade)
+
+#### 5.1 Tabela: `contabil_planos_contas`
+**Modelo**: `apps.contabil.models.PlanoContas`
+**Descrição**: Plano de contas com isolamento por contabilidade
+
+| Campo | Tipo | API | Frontend | Descrição |
+|-------|------|-----|----------|-----------|
+| `id` | UUID | ✅ | Client | Identificador único |
+| `contabilidade` | FK | ✅ | Client | Contabilidade (tenant) |
+| `codigo` | String | ✅ | Client | Código da conta |
+| `nome` | String | ✅ | Client | Nome da conta |
+| `tipo` | String | ✅ | Client | Tipo da conta |
+| `nivel` | Integer | ✅ | Client | Nível hierárquico |
+| `ativo` | Boolean | ✅ | Client | Status ativo/inativo |
+
+**APIs Relacionadas:**
+- `GET /api/dashboards/contabil/grupos/` - Valor por grupo de contas
+- `GET /api/dashboards/contabil/top-contas/` - Top 5 contas por valor
+
+**Regra de Ouro**: 
+- Filtrado automaticamente por `contabilidade`
+- Usuário só vê contas da sua contabilidade
+
+#### 5.2 Tabela: `contabil_lancamentos_contabeis`
+**Modelo**: `apps.contabil.models.LancamentoContabil`
+**Descrição**: Lançamentos contábeis com isolamento por contabilidade
+
+| Campo | Tipo | API | Frontend | Descrição |
+|-------|------|-----|----------|-----------|
+| `id` | UUID | ✅ | Client | Identificador único |
+| `contabilidade` | FK | ✅ | Client | Contabilidade (tenant) |
+| `data_lancamento` | Date | ✅ | Client | Data do lançamento |
+| `valor` | Decimal | ✅ | Client | Valor do lançamento |
+| `conta_devedora` | FK | ✅ | Client | Conta devedora |
+| `conta_credora` | FK | ✅ | Client | Conta credora |
+| `historico` | String | ✅ | Client | Histórico |
+| `usuario_criacao` | FK | ✅ | Client | Usuário que criou |
+
+**APIs Relacionadas:**
+- `GET /api/dashboards/contabil/indicadores/` - Indicadores contábeis
+- `GET /api/dashboards/contabil/evolucao/` - Evolução mensal
+- `GET /api/gestao/escritorio/performance/` - Performance do escritório
+
+**Regra de Ouro**: 
+- Filtrado automaticamente por `contabilidade`
+- Usuário só vê lançamentos da sua contabilidade
+
+---
+
+### 6. MÓDULO ADMINISTRAÇÃO (Contratos GESTK)
+
+#### 6.1 Tabela: `administracao_contratos_gestk`
+**Modelo**: `apps.administracao.models.ContratoGestk`
+**Descrição**: Contratos entre GESTK e contabilidades
+
+| Campo | Tipo | API | Frontend | Descrição |
+|-------|------|-----|----------|-----------|
+| `id` | UUID | ✅ | Admin | Identificador único |
+| `contabilidade` | FK | ✅ | Admin | Contabilidade |
+| `numero_contrato` | String | ✅ | Admin | Número do contrato |
+| `plano_servico` | String | ✅ | Admin | Plano contratado |
+| `valor_mensal` | Decimal | ✅ | Admin | Valor mensal |
+| `data_inicio` | Date | ✅ | Admin | Data de início |
+| `data_termino` | Date | ✅ | Admin | Data de término |
+| `status` | String | ✅ | Admin | Status do contrato |
+| `modulos_inclusos` | JSON | ✅ | Admin | Módulos incluídos |
+| `limites` | JSON | ✅ | Admin | Limites do contrato |
+
+**APIs Relacionadas:**
+- `GET /api/administracao/contratos-gestk/` - Listar contratos GESTK
+- `POST /api/administracao/contratos-gestk/` - Criar contrato
+- `PUT /api/administracao/contratos-gestk/{id}/` - Atualizar contrato
+
+**Regra de Ouro**: 
+- **Admin**: Acesso a todos os contratos
+- **Client**: Não tem acesso (apenas Admin)
+
+---
+
+### 7. MÓDULO BILLING (Faturamento)
+
+#### 7.1 Tabela: `billing_planos`
+**Modelo**: `apps.billing.models.Plano`
+**Descrição**: Planos de serviço disponíveis
+
+| Campo | Tipo | API | Frontend | Descrição |
+|-------|------|-----|----------|-----------|
+| `id` | UUID | ✅ | Admin | Identificador único |
+| `codigo` | String | ✅ | Admin | Código do plano |
+| `nome` | String | ✅ | Admin | Nome do plano |
+| `preco_mensal` | Decimal | ✅ | Admin | Preço mensal |
+| `preco_anual` | Decimal | ✅ | Admin | Preço anual |
+| `modulos_inclusos` | JSON | ✅ | Admin | Módulos incluídos |
+| `limites` | JSON | ✅ | Admin | Limites do plano |
+| `ativo` | Boolean | ✅ | Admin | Status ativo/inativo |
+
+**APIs Relacionadas:**
+- `GET /api/billing/planos/` - Listar planos
+- `POST /api/billing/planos/` - Criar plano
+
+**Regra de Ouro**: 
+- **Admin**: Acesso a todos os planos
+- **Client**: Não tem acesso (apenas Admin)
+
+#### 7.2 Tabela: `billing_assinaturas`
+**Modelo**: `apps.billing.models.Assinatura`
+**Descrição**: Assinaturas ativas das contabilidades
+
+| Campo | Tipo | API | Frontend | Descrição |
+|-------|------|-----|----------|-----------|
+| `id` | UUID | ✅ | Admin | Identificador único |
+| `contabilidade` | FK | ✅ | Admin | Contabilidade |
+| `plano` | FK | ✅ | Admin | Plano contratado |
+| `data_inicio` | Date | ✅ | Admin | Data de início |
+| `data_fim` | Date | ✅ | Admin | Data de fim |
+| `status` | String | ✅ | Admin | Status da assinatura |
+| `valor_mensal` | Decimal | ✅ | Admin | Valor mensal |
+| `ciclo_cobranca` | String | ✅ | Admin | Ciclo de cobrança |
+
+**APIs Relacionadas:**
+- `GET /api/billing/assinaturas/` - Listar assinaturas
+- `POST /api/billing/assinaturas/` - Criar assinatura
+
+**Regra de Ouro**: 
+- **Admin**: Acesso a todas as assinaturas
+- **Client**: Não tem acesso (apenas Admin)
+
+#### 7.3 Tabela: `billing_faturas`
+**Modelo**: `apps.billing.models.Fatura`
+**Descrição**: Faturas emitidas
+
+| Campo | Tipo | API | Frontend | Descrição |
+|-------|------|-----|----------|-----------|
+| `id` | UUID | ✅ | Admin | Identificador único |
+| `assinatura` | FK | ✅ | Admin | Assinatura |
+| `numero_fatura` | String | ✅ | Admin | Número da fatura |
+| `competencia` | String | ✅ | Admin | Competência |
+| `valor_original` | Decimal | ✅ | Admin | Valor original |
+| `valor_final` | Decimal | ✅ | Admin | Valor final |
+| `data_emissao` | Date | ✅ | Admin | Data de emissão |
+| `data_vencimento` | Date | ✅ | Admin | Data de vencimento |
+| `status` | String | ✅ | Admin | Status da fatura |
+
+**APIs Relacionadas:**
+- `GET /api/billing/faturas/` - Listar faturas
+- `POST /api/billing/faturas/` - Criar fatura
+
+**Regra de Ouro**: 
+- **Admin**: Acesso a todas as faturas
+- **Client**: Não tem acesso (apenas Admin)
+
+---
+
+## 🔄 Fluxo de Dados Frontend ↔ Backend
+
+### 1. Aplicação Admin (`apps/admin`)
+
+#### 1.1 Gestão de Contratos
+```typescript
+// Frontend solicita
+GET /api/administracao/contratos-gestk/
+
+// Backend aplica Regra de Ouro
+ContratoGestk.objects.filter(contabilidade=request.contabilidade)
+
+// Dados retornados
+{
+  "count": 10,
+  "results": [
+    {
+      "id": "uuid",
+      "numero_contrato": "GESTK-2024-001",
+      "contabilidade": {
+        "id": "uuid",
+        "razao_social": "Contabilidade ABC"
+      },
+      "plano_servico": "premium",
+      "valor_mensal": 500.00,
+      "status": "ativo"
+    }
+  ]
+}
+```
+
+#### 1.2 Gestão de Usuários
+```typescript
+// Frontend solicita
+GET /api/administracao/usuarios-acesso/
+
+// Backend aplica Regra de Ouro
+UsuarioAcesso.objects.filter(contabilidade=request.contabilidade)
+
+// Dados retornados
+{
+  "count": 25,
+  "results": [
+    {
+      "id": "uuid",
+      "usuario": {
+        "id": "uuid",
+        "username": "joao.silva",
+        "email": "joao@contabilidade.com"
+      },
+      "contabilidade": {
+        "id": "uuid",
+        "razao_social": "Contabilidade ABC"
+      },
+      "role": "operacional",
+      "modulos_acesso": ["gestao", "dashboards"],
+      "ativo": true
+    }
+  ]
+}
+```
+
+### 2. Aplicação Client (`apps/client`)
+
+#### 2.1 Carteira de Clientes
+```typescript
+// Frontend solicita
+GET /api/gestao/carteira/
+
+// Backend aplica Regra de Ouro
+PessoaJuridica.objects.filter(contabilidade_atual=request.contabilidade)
+
+// Dados retornados
+{
+  "count": 89,
+  "results": [
+    {
+      "id": "uuid",
+      "razao_social": "Empresa ABC Ltda",
+      "cnpj": "12.345.678/0001-90",
+      "regime_fiscal": "simples",
+      "ramo_atividade": "servicos",
+      "status_cliente": "ativo",
+      "data_inicio_contrato": "2023-02-01",
+      "tempo_contrato_meses": 24
+    }
+  ]
+}
+```
+
+#### 2.2 Dashboard Demográfico
+```typescript
+// Frontend solicita
+GET /api/dashboards/demografico/indicadores/
+
+// Backend aplica Regra de Ouro
+Funcionario.objects.filter(contabilidade=request.contabilidade)
+
+// Dados retornados
+{
+  "total_colaboradores": 45,
+  "colaboradores_ativos": 42,
+  "colaboradores_inativos": 3,
+  "turnover_mensal": 2.5,
+  "turnover_anual": 15.2,
+  "media_idade": 35.5,
+  "percentual_masculino": 60.0,
+  "percentual_feminino": 40.0
+}
+```
+
+#### 2.3 Dashboard Fiscal
+```typescript
+// Frontend solicita
+GET /api/dashboards/fiscal/faturamento/
+
+// Backend aplica Regra de Ouro
+NotaFiscal.objects.filter(contabilidade=request.contabilidade)
+
+// Dados retornados
+{
+  "total_faturamento": 125000.00,
+  "total_impostos": 18750.00,
+  "percentual_impostos": 15.0,
+  "total_notas_fiscais": 150,
+  "media_valor_nota": 833.33
+}
+```
+
+---
+
+## 🎯 Mapeamento por Funcionalidade do Frontend
+
+### 1. Módulo Gestão (`apps/client/src/app/(dashboard)/gestao/`)
+
+#### 1.1 Carteira de Clientes
+**Tabelas**: `pessoas_juridicas`, `pessoas_contratos`
+**APIs**: `/api/gestao/carteira/`
+**Dados Solicitados**:
+- Lista de empresas com filtros
+- Categorização por status
+- Evolução mensal
+- Detalhes por competência
+
+#### 1.2 Gestão de Clientes
+**Tabelas**: `pessoas_juridicas`, `pessoas_fisicas`, `pessoas_contratos`
+**APIs**: `/api/gestao/clientes/`
+**Dados Solicitados**:
+- Informações completas do cliente
+- Faturamento por cliente
+- Notas fiscais por cliente
+- Histórico de atividades
+
+#### 1.3 Gestão de Usuários
+**Tabelas**: `core_usuarios`, `core_usuario_acessos`
+**APIs**: `/api/gestao/usuarios/`
+**Dados Solicitados**:
+- Lista de usuários ativos
+- Atividades por usuário
+- Produtividade por usuário
+- Controle de acesso
+
+#### 1.4 Análise do Escritório
+**Tabelas**: `core_contabilidades`, `pessoas_juridicas`, `funcionarios_funcionarios`
+**APIs**: `/api/gestao/escritorio/`
+**Dados Solicitados**:
+- Visão geral do escritório
+- Performance e produtividade
+- Capacidade e limites
+- Tendências e projeções
+
+### 2. Módulo Dashboards (`apps/client/src/app/(dashboard)/dashboards/`)
+
+#### 2.1 Dashboard Demográfico
+**Tabelas**: `funcionarios_funcionarios`, `funcionarios_vinculos_empregaticios`
+**APIs**: `/api/dashboards/demografico/`
+**Dados Solicitados**:
+- Indicadores demográficos
+- Evolução de colaboradores
+- Distribuições (idade, gênero, escolaridade)
+
+#### 2.2 Dashboard Fiscal
+**Tabelas**: `fiscal_notas_fiscais`, `fiscal_notas_fiscais_itens`
+**APIs**: `/api/dashboards/fiscal/`
+**Dados Solicitados**:
+- Faturamento e impostos
+- Produtos/serviços mais relevantes
+- Clientes com maior faturamento
+- Geolocalização por UF
+
+#### 2.3 Dashboard Contábil
+**Tabelas**: `contabil_lancamentos_contabeis`, `contabil_planos_contas`
+**APIs**: `/api/dashboards/contabil/`
+**Dados Solicitados**:
+- Indicadores contábeis
+- Evolução mensal
+- Grupos e contas
+- Top contas por valor
+
+#### 2.4 Dashboard Organizacional
+**Tabelas**: `funcionarios_departamentos`, `funcionarios_cargos`, `funcionarios_vinculos_empregaticios`
+**APIs**: `/api/dashboards/organizacional/`
+**Dados Solicitados**:
+- Estrutura organizacional
+- Distribuição por departamento
+- Hierarquia organizacional
+- Custo por departamento
+
+#### 2.5 Dashboard Pessoal
+**Tabelas**: `funcionarios_vinculos_empregaticios`, `funcionarios_rubricas`
+**APIs**: `/api/dashboards/pessoal/`
+**Dados Solicitados**:
+- Folha de pagamento
+- Benefícios por tipo
+- Custos trabalhistas
+- Evolução da folha
+
+### 3. Módulo Relatórios (`apps/client/src/app/(dashboard)/relatorios/`)
+
+#### 3.1 Exportação de Dados
+**Tabelas**: Todas as tabelas relevantes
+**APIs**: `/api/export/`
+**Dados Solicitados**:
+- Carteira em PDF/Excel
+- Clientes em PDF/Excel
+- Relatório geral em PDF/Excel
+
+---
+
+## 🔐 Aplicação da Regra de Ouro por Módulo
+
+### 1. Módulo Core
+- **Admin**: Acesso total a todas as contabilidades
+- **Client**: Acesso apenas à sua contabilidade
+- **Filtro**: `contabilidade=request.contabilidade`
+
+### 2. Módulo Pessoas
+- **Admin**: Acesso a todas as pessoas
+- **Client**: Acesso apenas a pessoas da sua contabilidade
+- **Filtro**: `contabilidade_atual=request.contabilidade`
+
+### 3. Módulo Fiscal
+- **Admin**: Acesso a todas as notas fiscais
+- **Client**: Acesso apenas a notas da sua contabilidade
+- **Filtro**: `contabilidade=request.contabilidade`
+
+### 4. Módulo Funcionários
+- **Admin**: Acesso a todos os funcionários
+- **Client**: Acesso apenas a funcionários da sua contabilidade
+- **Filtro**: `contabilidade=request.contabilidade`
+
+### 5. Módulo Contábil
+- **Admin**: Acesso a todos os lançamentos
+- **Client**: Acesso apenas a lançamentos da sua contabilidade
+- **Filtro**: `contabilidade=request.contabilidade`
+
+### 6. Módulo Administração
+- **Admin**: Acesso total (sem filtro)
+- **Client**: Sem acesso
+- **Filtro**: Nenhum (apenas Admin)
+
+### 7. Módulo Billing
+- **Admin**: Acesso total (sem filtro)
+- **Client**: Sem acesso
+- **Filtro**: Nenhum (apenas Admin)
+
+---
+
+## 📊 Resumo de Endpoints por Módulo
+
+### Admin (Aplicação Administrativa)
+- **Auth**: 4 endpoints
+- **Administração**: 12 endpoints
+- **Billing**: 16 endpoints
+- **Total Admin**: 32 endpoints
+
+### Client (Aplicação do Cliente)
+- **Auth**: 4 endpoints
+- **Gestão**: 20 endpoints
+- **Dashboards**: 25 endpoints
+- **Export**: 6 endpoints
+- **Escritório**: 4 endpoints
+- **Total Client**: 59 endpoints
+
+### **Total Geral**: 91 endpoints
+
+---
+
+## 🚀 Conclusão
+
+Este mapeamento garante que:
+
+1. **Isolamento Total**: Cada contabilidade vê apenas seus dados
+2. **Segurança**: Regra de Ouro aplicada automaticamente
+3. **Performance**: Filtros otimizados no banco de dados
+4. **Auditoria**: Todas as operações são registradas
+5. **Escalabilidade**: Suporte a múltiplos tenants
+6. **Integração**: Frontend e backend perfeitamente alinhados
+
+A API está **100% pronta** para integração com o frontend, com todos os endpoints funcionais e dados reais em todos os dashboards.

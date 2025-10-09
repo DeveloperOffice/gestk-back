@@ -57,6 +57,28 @@ class PessoaJuridica(models.Model):
     )
     simples_nacional = models.BooleanField(_('Simples Nacional'), default=False)
     
+    # Campos adicionais para dashboards
+    regime_fiscal = models.CharField(
+        _('Regime Fiscal'),
+        max_length=20,
+        choices=[
+            ('simples', 'Simples Nacional'),
+            ('presumido', 'Lucro Presumido'),
+            ('real', 'Lucro Real'),
+        ],
+        blank=True, null=True
+    )
+    ramo_atividade = models.CharField(
+        _('Ramo de Atividade'),
+        max_length=20,
+        choices=[
+            ('comercio', 'Comércio'),
+            ('industria', 'Indústria'),
+            ('servicos', 'Serviços'),
+        ],
+        blank=True, null=True
+    )
+    
     # Responsável legal
     responsavel_legal = models.CharField(_('Responsável Legal'), max_length=255, blank=True, null=True)
     cpf_responsavel = models.CharField(_('CPF do Responsável'), max_length=14, blank=True, null=True)

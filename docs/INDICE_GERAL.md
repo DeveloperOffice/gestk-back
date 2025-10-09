@@ -72,6 +72,25 @@ Este é o índice completo da documentação técnica do projeto GESTK, organiza
   - Permissões granulares
   - Middleware multi-tenant
   - Exemplos de uso completos
+- **[Mapeamento Completo](MAPEAMENTO_TABELAS_APIS_FRONTEND.md)** - Tabelas ↔ APIs ↔ Frontend
+  - Mapeamento detalhado de todas as tabelas
+  - Relação com endpoints da API
+  - Integração com frontend (Admin/Client)
+  - Aplicação da Regra de Ouro
+  - Fluxo de dados completo
+  - 91 endpoints mapeados
+- **[Integração Frontend-Backend](INTEGRACAO_FRONTEND_BACKEND.md)** - Integração completa
+  - Arquitetura de integração
+  - Sistema de autenticação
+  - Mapeamento de módulos
+  - Implementação de serviços
+  - Configuração de ambiente
+- **[Guia de Implementação Frontend](GUIA_IMPLEMENTACAO_FRONTEND.md)** - Guia prático
+  - Configuração inicial
+  - Implementação de serviços
+  - Hooks personalizados
+  - Testes de integração
+  - Próximos passos
 - **[Status da API REST](VARIAVEIS_AMBIENTE.md#api-rest)** - Progresso da implementação
   - Estrutura base implementada
   - Middleware multitenant
@@ -173,6 +192,9 @@ Este é o índice completo da documentação técnica do projeto GESTK, organiza
 - **API de Administração** ✨
 - **Arquitetura Multi-Tenant** ✨
 - **Guia de Desenvolvimento API** ✨
+- **Mapeamento Completo** ✨
+- **Integração Frontend-Backend** ✨
+- **Guia de Implementação Frontend** ✨
 
 ### **📋 Planejado**
 - Guia de Frontend
@@ -217,11 +239,11 @@ Este é o índice completo da documentação técnica do projeto GESTK, organiza
 ## 📈 Métricas da Documentação
 
 ### **Estatísticas Atuais**
-- **Total de Páginas**: 11
-- **Total de Seções**: 60+
-- **Exemplos de Código**: 200+
-- **Diagramas**: 8+
-- **Links Internos**: 80+
+- **Total de Páginas**: 15
+- **Total de Seções**: 85+
+- **Exemplos de Código**: 300+
+- **Diagramas**: 12+
+- **Links Internos**: 110+
 
 ### **Cobertura por Tópico**
 - **Desenvolvimento**: 100%
@@ -229,11 +251,13 @@ Este é o índice completo da documentação técnica do projeto GESTK, organiza
 - **Arquitetura**: 100%
 - **API**: 100% ✨
 - **Multi-Tenancy**: 100% ✨
+- **Mapeamento Frontend-Backend**: 100% ✨
+- **Integração Frontend**: 100% ✨
 - **Deploy**: 40%
 - **Testes**: 80% ✨
 
 ---
 
-**Última atualização**: 07/10/2025  
-**Versão da documentação**: 3.0  
+**Última atualização**: 08/10/2025  
+**Versão da documentação**: 3.2  
 **Próxima revisão**: 15/10/2025

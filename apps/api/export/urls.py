@@ -1,21 +1,11 @@
-"""
-URLs do módulo de Exportação
-"""
-
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from .views import ExportViewSet
 
-# Importar ViewSets (serão criados nos próximos passos)
-# from .views import RelatoriosViewSet, ExportViewSet
-
-# Router para exportação
+# Router para ViewSets
 router = DefaultRouter()
-router.trailing_slash = False
-
-# Registrar ViewSets (serão descomentados conforme implementação)
-# router.register(r'relatorios', RelatoriosViewSet, basename='relatorios')
-# router.register(r'export', ExportViewSet, basename='export')
+router.register(r'', ExportViewSet, basename='export')
 
 urlpatterns = [
-    path('', include(router.urls)),
-]
+    # Incluir rotas do router
+] + router.urls

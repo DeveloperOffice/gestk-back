@@ -66,6 +66,28 @@ class Funcionario(models.Model):
     pessoa_fisica = models.ForeignKey('pessoas.PessoaFisica', on_delete=models.PROTECT)
     id_legado = models.CharField(max_length=50, null=True, blank=True)
     ativo = models.BooleanField(default=True)
+    
+    # Campos adicionais para dashboards demográficos
+    data_nascimento = models.DateField(_('Data de Nascimento'), blank=True, null=True)
+    genero = models.CharField(
+        _('Gênero'), 
+        max_length=1, 
+        choices=[('M', 'Masculino'), ('F', 'Feminino')], 
+        blank=True, 
+        null=True
+    )
+    escolaridade = models.CharField(
+        _('Escolaridade'),
+        max_length=30,
+        choices=[
+            ('fundamental', 'Ensino Fundamental'),
+            ('medio', 'Ensino Médio'),
+            ('superior', 'Ensino Superior'),
+            ('pos', 'Pós-graduação'),
+        ],
+        blank=True, null=True
+    )
+    
     # history removido
 
     class Meta:

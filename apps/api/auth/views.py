@@ -18,6 +18,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     """
     View customizada para obter tokens JWT com informações da contabilidade
     """
+    permission_classes = [AllowAny]
     serializer_class = CustomTokenObtainPairSerializer
 
 

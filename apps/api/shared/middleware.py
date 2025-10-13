@@ -15,10 +15,23 @@ class MultiTenantContextMiddleware(MiddlewareMixin):
     Middleware que gerencia o contexto multi-tenant
     """
     
+    # Rotas que devem ser ignoradas pelo middleware
+    EXCLUDED_PATHS = [
+        '/api/auth/login/',
+        '/api/auth/token/',
+        '/api/auth/token/refresh/',
+        '/admin/login/',
+        '/admin/',
+    ]
+    
     def process_request(self, request):
         """
         Processa a requisição e define o contexto multi-tenant
         """
+        # Ignorar rotas de autenticação
+        if any(request.path.startswith(path) for path in self.EXCLUDED_PATHS):
+            return
+        
         if not request.user.is_authenticated:
             return
         
@@ -145,10 +158,23 @@ class TenantAuditMiddleware(MiddlewareMixin):
     Middleware para auditoria de trocas de tenant
     """
     
+    # Rotas que devem ser ignoradas pelo middleware
+    EXCLUDED_PATHS = [
+        '/api/auth/login/',
+        '/api/auth/token/',
+        '/api/auth/token/refresh/',
+        '/admin/login/',
+        '/admin/',
+    ]
+    
     def process_request(self, request):
         """
         Registra a troca de tenant para auditoria
         """
+        # Ignorar rotas de autenticação
+        if any(request.path.startswith(path) for path in self.EXCLUDED_PATHS):
+            return
+        
         if not request.user.is_authenticated:
             return
         

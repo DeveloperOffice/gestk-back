@@ -18,4 +18,5 @@ router.register(r'contabilidades-billing', ContabilidadeBillingViewSet, basename
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('superuser/', include('apps.api.billing.superuser.urls')),
 ]

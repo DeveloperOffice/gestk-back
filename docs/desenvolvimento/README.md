@@ -26,10 +26,49 @@ venv\Scripts\activate     # Windows
 pip install -r requirements.txt
 ```
 
-3. **Configure Variáveis**
+3. **Configure Variáveis de Ambiente**
 ```bash
 cp .env.example .env
 # Edite o arquivo .env com suas configurações
+```
+
+#### **Arquivo `.env` Exemplo:**
+```bash
+SECRET_KEY=django-insecure-seu-segredo-super-secreto-aqui
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1
+
+# PostgreSQL
+DB_NAME=db_gestk
+DB_USER=postgres
+DB_PASSWORD=admin
+DB_HOST=localhost
+DB_PORT=5432
+
+# Sybase (para ETL)
+ODBC_DRIVER=SQL Anywhere 17
+ODBC_SERVER=dominio3
+ODBC_DATABASE=contabil
+ODBC_USER=EXTERNO
+ODBC_PASSWORD=externo
+```
+
+#### **Configuração CORS para Frontend:**
+```python
+# settings.py
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",      # GESTK Admin App
+    "http://127.0.0.1:3000",      # GESTK Admin App (alternativo)
+    "http://localhost:3001",      # GESTK Client App
+    "http://127.0.0.1:3001",      # GESTK Client App (alternativo)
+]
+
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    'accept', 'accept-encoding', 'authorization', 'content-type',
+    'dnt', 'origin', 'user-agent', 'x-csrftoken', 'x-requested-with',
+    'x-contabilidade-id'  # Header customizado do GESTK
+]
 ```
 
 4. **Execute Migrações**

@@ -26,6 +26,48 @@ O GESTK é um sistema de gestão contábil SaaS (Software as a Service) constru�
 - **Cache Inteligente**: TTL de 5 minutos para mapas
 - **Índices Otimizados**: Consultas multitenant eficientes
 
+## 🔒 Segurança e Arquitetura
+
+### **Implementações de Segurança**
+
+#### **1. Multi-Tenancy Estrito**
+- **Isolamento por Contabilidade**: ForeignKey obrigatória em todas as tabelas
+- **Middleware Automático**: Contexto de tenant definido automaticamente
+- **Validação de Acesso**: Verificação de permissões por contabilidade
+- **Auditoria Completa**: Log de todas as operações com contexto
+
+#### **2. Autenticação e Autorização**
+- **JWT Authentication**: Tokens seguros com refresh automático
+- **Roles Granulares**: Superusuário, Admin, Operacional, ETL, Somente Leitura
+- **MFA Support**: Autenticação de dois fatores para staff
+- **IP Restrictions**: Controle de acesso por faixas de IP
+
+#### **3. Validações de Segurança**
+- **CNPJ/CPF como Identificador Universal**: Validação rigorosa
+- **Regra de Ouro**: Resolução de contabilidade por data do evento
+- **Validação de Permissões**: Verificação em cada operação
+- **Auditoria de Acessos**: Rastreamento completo de alterações
+
+### **Plano de Implementação de Segurança**
+
+#### **Status Atual (14/10/2025)**
+| Implementação | Status | Prioridade | Descrição |
+|---------------|--------|------------|-----------|
+| **Custom User (AbstractUser)** | ✅ Concluído | Alta | Evita migração dolorosa futura |
+| **Roles por contabilidade** | 🔄 Em andamento | Alta | Melhor isolamento multitenant |
+| **RLS no PostgreSQL** | ⏳ Pendente | Alta | Segurança adicional crítica |
+| **JWT RS256 + Claims** | 🔄 Em andamento | Média | Segurança enterprise |
+| **ETL Assíncrono (Celery)** | ⏳ Pendente | Alta | Performance e confiabilidade |
+| **Logging estruturado JSON** | ⏳ Pendente | Média | Observabilidade |
+| **MFA para staff** | ⏳ Pendente | Média | Segurança adicional |
+
+#### **Próximas Implementações**
+1. **RLS (Row Level Security)** no PostgreSQL
+2. **JWT RS256** com claims customizados
+3. **ETL Assíncrono** com Celery
+4. **Logging estruturado** em JSON
+5. **MFA** para usuários administrativos
+
 ## 🏛️ Arquitetura do Sistema
 
 ### **Diagrama de Alto Nível**

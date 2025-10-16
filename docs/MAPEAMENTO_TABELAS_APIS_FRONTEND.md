@@ -29,6 +29,267 @@ A **Regra de Ouro** é aplicada automaticamente em todos os endpoints através d
 
 ## 📊 Mapeamento por Módulo
 
+### **Status Atual (14/10/2025)**
+- **91 endpoints implementados** (83% da API)
+- **19 ETLs funcionais** (95% da migração)
+- **6 módulos principais** operacionais
+
+### **📋 Lista Completa de Endpoints Implementados**
+
+#### **🔐 Autenticação (4 endpoints)**
+```
+POST   /api/auth/login/                    # Login customizado
+POST   /api/auth/logout/                   # Logout
+GET    /api/auth/me/                       # Dados do usuário logado
+POST   /api/auth/token/                    # Obter token JWT
+POST   /api/auth/token/refresh/            # Renovar token JWT
+```
+
+#### **⚙️ Administração (2 endpoints)**
+```
+GET    /api/administracao/usuarios-acesso/     # Acessos de usuários
+GET    /api/administracao/contabilidades-admin/ # Contabilidades com admin
+```
+
+#### **💰 Billing (44 endpoints)**
+```
+# Planos
+GET    /api/billing/planos/                    # Lista de planos
+GET    /api/billing/planos/ativos/             # Planos ativos
+GET    /api/billing/planos/resumo/             # Resumo de planos
+
+# Assinaturas
+GET    /api/billing/assinaturas/               # Lista de assinaturas
+POST   /api/billing/assinaturas/criar_assinatura/ # Criar assinatura
+GET    /api/billing/assinaturas/resumo/        # Resumo de assinaturas
+
+# Faturas
+GET    /api/billing/faturas/                   # Lista de faturas
+POST   /api/billing/faturas/gerar_faturas/     # Gerar faturas
+GET    /api/billing/faturas/resumo/            # Resumo de faturas
+
+# Pagamentos
+GET    /api/billing/pagamentos/                # Lista de pagamentos
+GET    /api/billing/pagamentos/resumo/         # Resumo de pagamentos
+
+# Superuser (22 endpoints adicionais)
+GET    /api/billing/superuser/assinaturas/     # Assinaturas (superuser)
+GET    /api/billing/superuser/faturas/         # Faturas (superuser)
+```
+
+#### **👥 Gestão (21 endpoints)**
+```
+# Superuser (11 endpoints)
+GET    /api/gestao/superuser/contabilidades/   # Contabilidades (superuser)
+GET    /api/gestao/superuser/contratos-gestk/  # Contratos GESTK
+
+# Admin (10 endpoints)
+GET    /api/gestao/admin/contratos/            # Contratos (admin)
+GET    /api/gestao/admin/usuarios/             # Usuários (admin)
+
+# Módulos específicos
+GET    /api/gestao/carteira/clientes/          # Carteira de clientes
+GET    /api/gestao/carteira/categorias/        # Categorias por regime
+GET    /api/gestao/carteira/evolucao/          # Evolução mensal
+GET    /api/gestao/clientes/lista/             # Lista de clientes
+GET    /api/gestao/clientes/detalhes/          # Detalhes do cliente
+GET    /api/gestao/clientes/socios/            # Sócios majoritários
+GET    /api/gestao/usuarios/lista/             # Lista de usuários
+GET    /api/gestao/usuarios/atividades/        # Atividades por usuário
+GET    /api/gestao/usuarios/produtividade/     # Produtividade por usuário
+GET    /api/gestao/escritorio/visao_geral/     # Visão geral do escritório
+```
+
+#### **📊 Dashboards (16 endpoints)**
+```
+# Demográfico (7 endpoints)
+GET    /api/dashboards/demografico/indicadores/           # Indicadores demográficos
+GET    /api/dashboards/demografico/evolucao-mensal/       # Evolução mensal
+GET    /api/dashboards/demografico/distribuicao-etaria/   # Distribuição etária
+GET    /api/dashboards/demografico/distribuicao-genero/   # Distribuição por gênero
+GET    /api/dashboards/demografico/distribuicao-escolaridade/ # Distribuição por escolaridade
+GET    /api/dashboards/demografico/distribuicao-cargo/    # Distribuição por cargo
+GET    /api/dashboards/demografico/colaboradores/         # Lista de colaboradores
+
+# Organizacional (3 endpoints)
+GET    /api/dashboards/organizacional/cargos/             # Cargos
+GET    /api/dashboards/organizacional/departamentos/      # Departamentos
+GET    /api/dashboards/organizacional/hierarquia/         # Hierarquia
+
+# Pessoal (1 endpoint)
+GET    /api/dashboards/pessoal/indicadores/               # Indicadores pessoais
+
+# Contábil (2 endpoints)
+GET    /api/dashboards/contabil/indicadores/              # Indicadores contábeis
+GET    /api/dashboards/contabil/balancete/                # Balancete
+
+# Fiscal (3 endpoints)
+GET    /api/dashboards/fiscal/indicadores/                # Indicadores fiscais
+GET    /api/dashboards/fiscal/resumo-por-tipo/            # Resumo por tipo de nota
+GET    /api/dashboards/fiscal/top-clientes/               # Top clientes por faturamento
+```
+
+#### **📤 Export (4 endpoints)**
+```
+POST   /api/export/carteira_pdf/              # Exportar carteira (PDF)
+POST   /api/export/carteira_excel/            # Exportar carteira (Excel)
+POST   /api/export/clientes_pdf/              # Exportar clientes (PDF)
+POST   /api/export/clientes_excel/            # Exportar clientes (Excel)
+POST   /api/export/relatorio_geral_pdf/       # Relatório geral (PDF)
+POST   /api/export/relatorio_geral_excel/     # Relatório geral (Excel)
+```
+
+---
+
+## 🚀 **CONFIGURAÇÃO PARA O FRONTEND**
+
+### **Base URL da API**
+```
+https://api.gestk.com.br/api/
+```
+
+### **Headers Obrigatórios**
+```typescript
+{
+  "Authorization": "Bearer <jwt_token>",
+  "Content-Type": "application/json"
+}
+```
+
+### **Headers Opcionais**
+```typescript
+{
+  "X-Contabilidade-ID": "<contabilidade_id>",  // Para especificar tenant
+  "Accept": "application/json"
+}
+```
+
+### **Exemplo de Configuração Axios**
+```typescript
+import axios from 'axios';
+
+const apiClient = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Interceptor para adicionar token automaticamente
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('access_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Interceptor para renovar token automaticamente
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (refreshToken) {
+        try {
+          const response = await axios.post('/api/auth/token/refresh/', {
+            refresh: refreshToken
+          });
+          localStorage.setItem('access_token', response.data.access);
+          error.config.headers.Authorization = `Bearer ${response.data.access}`;
+          return apiClient(error.config);
+        } catch (refreshError) {
+          // Redirecionar para login
+          window.location.href = '/login';
+        }
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+```
+
+### **Exemplo de Uso dos Endpoints**
+```typescript
+// Login
+const login = async (username: string, password: string) => {
+  const response = await apiClient.post('/auth/login/', {
+    username,
+    password
+  });
+  localStorage.setItem('access_token', response.data.access);
+  localStorage.setItem('refresh_token', response.data.refresh);
+  return response.data;
+};
+
+// Buscar dados do usuário
+const getMe = async () => {
+  const response = await apiClient.get('/auth/me/');
+  return response.data;
+};
+
+// Buscar indicadores demográficos
+const getIndicadoresDemograficos = async () => {
+  const response = await apiClient.get('/dashboards/demografico/indicadores/');
+  return response.data;
+};
+
+// Buscar carteira de clientes
+const getCarteiraClientes = async () => {
+  const response = await apiClient.get('/gestao/carteira/clientes/');
+  return response.data;
+};
+```
+
+---
+
+### 0. MÓDULO AUTH (Autenticação e Sessão)
+
+#### 0.1 Autenticação JWT
+**Descrição**: Sistema de autenticação baseado em JSON Web Tokens
+
+**APIs Relacionadas:**
+```
+POST   /api/auth/token/                    - Obter token JWT (login)
+POST   /api/auth/token/refresh/            - Renovar token JWT
+POST   /api/auth/login/                    - Login customizado com validações
+GET    /api/auth/me/                       - Dados do usuário logado
+POST   /api/auth/logout/                   - Logout e invalidação do token
+```
+
+**Fluxo de Autenticação:**
+1. **Login**: Cliente envia `username` e `password` para `/api/auth/token/`
+2. **Resposta**: Backend retorna `access_token` e `refresh_token`
+3. **Requisições**: Cliente envia `Authorization: Bearer {access_token}` em todas as requisições
+4. **Renovação**: Quando `access_token` expira, usa `refresh_token` em `/api/auth/token/refresh/`
+5. **Logout**: Cliente envia request para `/api/auth/logout/` para invalidar tokens
+
+**Dados do Usuário Logado (`/api/auth/me/`):**
+```json
+{
+  "id": "uuid",
+  "username": "joao.silva",
+  "email": "joao@contabilidade.com",
+  "tipo_usuario": "operacional",
+  "contabilidade": {
+    "id": "uuid",
+    "razao_social": "Contabilidade ABC",
+    "cnpj": "12.345.678/0001-90"
+  },
+  "modulos_acessiveis": ["gestao", "dashboards", "relatorios"],
+  "permissoes": ["view_cliente", "add_lancamento"],
+  "is_superuser": false,
+  "is_admin": false
+}
+```
+
+**Regra de Ouro**: 
+- Token JWT contém `contabilidade_id` do usuário
+- Middleware extrai e valida automaticamente em cada requisição
+- Usuário só acessa dados da sua contabilidade
+
+---
+
 ### 1. MÓDULO CORE (Sistema Base)
 
 #### 1.1 Tabela: `core_contabilidades`
@@ -48,7 +309,8 @@ A **Regra de Ouro** é aplicada automaticamente em todos os endpoints através d
 | `saldo_creditos` | Decimal | ✅ | Admin | Saldo de créditos |
 
 **APIs Relacionadas:**
-- `GET /api/administracao/contabilidades/` - Listar contabilidades (Admin)
+- `GET /api/gestao/superuser/contabilidades/` - Listar contabilidades (Superuser)
+- `GET /api/administracao/contabilidades-admin/` - Gestão administrativa (Admin)
 - `GET /api/billing/contabilidades-billing/` - Dados de billing (Admin)
 
 **Regra de Ouro**: 
@@ -151,7 +413,10 @@ A **Regra de Ouro** é aplicada automaticamente em todos os endpoints através d
 
 **APIs Relacionadas:**
 - `GET /api/gestao/clientes/` - Clientes (PF e PJ)
-- `GET /api/dashboards/demografico/distribuicoes/` - Distribuições demográficas
+- `GET /api/dashboards/demografico/indicadores/` - Indicadores demográficos
+- `GET /api/dashboards/demografico/distribuicao-etaria/` - Distribuição etária
+- `GET /api/dashboards/demografico/distribuicao-genero/` - Distribuição por gênero
+- `GET /api/dashboards/demografico/distribuicao-escolaridade/` - Distribuição por escolaridade
 
 **Regra de Ouro**: 
 - Filtrado por `contabilidade_atual` via contratos
@@ -205,11 +470,9 @@ A **Regra de Ouro** é aplicada automaticamente em todos os endpoints através d
 | `tipo_operacao` | String | ✅ | Client | Tipo da operação |
 
 **APIs Relacionadas:**
-- `GET /api/dashboards/fiscal/faturamento/` - Visão geral do faturamento
-- `GET /api/dashboards/fiscal/produtos/` - Produtos/serviços mais relevantes
-- `GET /api/dashboards/fiscal/clientes/` - Clientes com maior faturamento
-- `GET /api/dashboards/fiscal/geolocalizacao/` - Faturamento por UF
-- `GET /api/dashboards/fiscal/impostos/` - Impostos devidos
+- `GET /api/dashboards/fiscal/indicadores/` - Indicadores fiscais gerais
+- `GET /api/dashboards/fiscal/resumo-por-tipo/` - Resumo por tipo de nota
+- `GET /api/dashboards/fiscal/top-clientes/` - Top clientes por faturamento
 
 **Regra de Ouro**: 
 - Filtrado automaticamente por `contabilidade`
@@ -403,9 +666,13 @@ A **Regra de Ouro** é aplicada automaticamente em todos os endpoints através d
 | `limites` | JSON | ✅ | Admin | Limites do contrato |
 
 **APIs Relacionadas:**
-- `GET /api/administracao/contratos-gestk/` - Listar contratos GESTK
-- `POST /api/administracao/contratos-gestk/` - Criar contrato
-- `PUT /api/administracao/contratos-gestk/{id}/` - Atualizar contrato
+- `GET /api/gestao/superuser/contratos-gestk/` - Listar contratos GESTK (Superuser)
+- `POST /api/gestao/superuser/contratos-gestk/` - Criar contrato (Superuser)
+- `PUT /api/gestao/superuser/contratos-gestk/{id}/` - Atualizar contrato (Superuser)
+- `POST /api/gestao/superuser/contratos-gestk/{id}/renovar/` - Renovar contrato
+- `POST /api/gestao/superuser/contratos-gestk/{id}/suspender/` - Suspender contrato
+- `POST /api/gestao/superuser/contratos-gestk/{id}/cancelar/` - Cancelar contrato
+- `GET /api/gestao/superuser/contratos-gestk/estatisticas/` - Estatísticas de contratos
 
 **Regra de Ouro**: 
 - **Admin**: Acesso a todos os contratos
@@ -601,7 +868,7 @@ Funcionario.objects.filter(contabilidade=request.contabilidade)
 #### 2.3 Dashboard Fiscal
 ```typescript
 // Frontend solicita
-GET /api/dashboards/fiscal/faturamento/
+GET /api/dashboards/fiscal/indicadores/
 
 // Backend aplica Regra de Ouro
 NotaFiscal.objects.filter(contabilidade=request.contabilidade)
@@ -624,7 +891,10 @@ NotaFiscal.objects.filter(contabilidade=request.contabilidade)
 
 #### 1.1 Carteira de Clientes
 **Tabelas**: `pessoas_juridicas`, `pessoas_contratos`
-**APIs**: `/api/gestao/carteira/`
+**APIs**: 
+- `GET /api/gestao/carteira/clientes/` - Lista de clientes
+- `GET /api/gestao/carteira/categorias/` - Categorias por regime fiscal
+- `GET /api/gestao/carteira/evolucao/` - Evolução mensal
 **Dados Solicitados**:
 - Lista de empresas com filtros
 - Categorização por status
@@ -633,7 +903,10 @@ NotaFiscal.objects.filter(contabilidade=request.contabilidade)
 
 #### 1.2 Gestão de Clientes
 **Tabelas**: `pessoas_juridicas`, `pessoas_fisicas`, `pessoas_contratos`
-**APIs**: `/api/gestao/clientes/`
+**APIs**:
+- `GET /api/gestao/clientes/lista/` - Lista de clientes
+- `GET /api/gestao/clientes/detalhes/` - Detalhes do cliente
+- `GET /api/gestao/clientes/socios/` - Sócios majoritários
 **Dados Solicitados**:
 - Informações completas do cliente
 - Faturamento por cliente
@@ -642,7 +915,10 @@ NotaFiscal.objects.filter(contabilidade=request.contabilidade)
 
 #### 1.3 Gestão de Usuários
 **Tabelas**: `core_usuarios`, `core_usuario_acessos`
-**APIs**: `/api/gestao/usuarios/`
+**APIs**:
+- `GET /api/gestao/usuarios/lista/` - Lista de usuários
+- `GET /api/gestao/usuarios/atividades/` - Atividades por usuário
+- `GET /api/gestao/usuarios/produtividade/` - Produtividade por usuário
 **Dados Solicitados**:
 - Lista de usuários ativos
 - Atividades por usuário
@@ -772,6 +1048,11 @@ NotaFiscal.objects.filter(contabilidade=request.contabilidade)
 - **Total Client**: 59 endpoints
 
 ### **Total Geral**: 91 endpoints
+
+**Observação Importante**: 
+- Endpoints de `ContratoGestk` foram consolidados em `/api/gestao/superuser/contratos-gestk/`
+- Removida duplicação que existia em `/api/administracao/contratos-gestk/`
+- Endpoints de Auth customizados (`/login/`, `/me/`, `/logout/`) agora documentados
 
 ---
 

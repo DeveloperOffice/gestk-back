@@ -12,9 +12,10 @@ Este é o índice completo da documentação técnica do projeto GESTK, organiza
 ## ⭐ Início Rápido
 
 ### **Documentos Essenciais**
-1. 📊 **[Resumo Executivo](RESUMO_EXECUTIVO.md)** - Visão geral completa do projeto
-2. 📖 **[README Principal](../README.md)** - Documentação principal
-3. 🛠️ **[Guia de Troubleshooting](GUIA_TROUBLESHOOTING.md)** - Resolução de problemas
+1. 📊 **[Status Consolidado](STATUS_CONSOLIDADO_PROJETO.md)** - Status atual consolidado do projeto
+2. 📊 **[Resumo Executivo](RESUMO_EXECUTIVO.md)** - Visão geral completa do projeto
+3. 📖 **[README Principal](../README.md)** - Documentação principal
+4. 🛠️ **[Guia de Troubleshooting](GUIA_TROUBLESHOOTING.md)** - Resolução de problemas
 
 ### **Fases Concluídas** ✅
 1. ✅ **[Fase 1.1 - Contabilidades CRUD](FASE_1.1_CONCLUIDA.md)** (11 endpoints, 16 testes)

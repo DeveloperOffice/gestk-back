@@ -41,3 +41,4 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS('Limpeza concluída com sucesso!'))
         self.stdout.write('Agora você pode executar as ETLs reais com o banco Sybase disponível.')
+

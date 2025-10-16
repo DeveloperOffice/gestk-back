@@ -40,6 +40,10 @@ class BaseETLCommand(BaseCommand):
 
 ## 📋 Lista Completa de ETLs
 
+### **Status Atual (14/10/2025)**
+- **19 de 20 ETLs implementados** (95% completo)
+- **1 ETL pendente**: ETL 20 - Lançamentos por Usuário
+
 ### **ETLs Base (Executar Primeiro)**
 
 | ETL | Descrição | Status | Dependências | Comando |
@@ -95,6 +99,22 @@ class BaseETLCommand(BaseCommand):
 
 ### **Ordem Obrigatória de Execução**
 
+### **Execução Sequencial Automática (Recomendado)**
+
+#### **Script Python (Recomendado)**
+```bash
+# Execução completa (produção)
+python executar_etls_sequencial.py
+
+# Execução com limite de registros (teste)
+python executar_etls_sequencial.py --limit 1000
+
+# Execução apenas de ETLs específicos
+python executar_etls_sequencial.py --etls 01,04,05,06
+```
+
+#### **Execução Manual (Sequência Recomendada)**
+
 ```bash
 # 1. ETLs Base (executar primeiro)
 python manage.py etl_00_mapeamento_empresas
@@ -125,6 +145,25 @@ python manage.py etl_16_rh_rescisoes
 # 5. ETLs de Administração
 python manage.py etl_18_usuarios
 python manage.py etl_19_logs_unificado_corrigido
+
+# 6. ETL Pendente
+python manage.py etl_20_lancamentos_por_usuario  # Em desenvolvimento
+```
+
+### **Opções de Execução**
+
+```bash
+# Modo de teste (não salva no banco)
+python manage.py etl_XX_nome --dry-run
+
+# Limitar quantidade de registros
+python manage.py etl_XX_nome --limit 1000
+
+# Apenas atualizar registros existentes
+python manage.py etl_04_contratos --update-only
+
+# Executar com progresso detalhado
+python manage.py etl_18_usuarios --batch-size 1000 --progress-interval 50
 ```
 
 ### **Opções de Execução**

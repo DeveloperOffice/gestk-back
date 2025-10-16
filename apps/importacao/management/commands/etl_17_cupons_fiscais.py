@@ -18,6 +18,18 @@ class Command(BaseETLCommand):
         self.stdout.write("\n[1/5] Construindo mapa histórico de contabilidades...")
         historical_map = self.build_historical_contabilidade_map()
         
+        # Verificar mapeamento CNPJ -> Contrato -> Contabilidade
+        self.stdout.write("\n[1.1/5] Verificando mapeamento CNPJ -> Contrato -> Contabilidade...")
+        total_empresas_mapeadas = len(historical_map)
+        self.stdout.write(f"  Empresas mapeadas: {total_empresas_mapeadas:,}")
+        
+        # Mostrar alguns exemplos de mapeamento para verificação
+        exemplos = list(historical_map.items())[:3]
+        for cnpj, contratos in exemplos:
+            self.stdout.write(f"  CNPJ: {cnpj} -> {len(contratos)} contrato(s)")
+            for data_inicio, data_termino, contab, contrato in contratos[:1]:  # Mostrar apenas o primeiro
+                self.stdout.write(f"    Contrato: {contrato.id} | Contabilidade: {contab.id} | Periodo: {data_inicio} a {data_termino}")
+        
         # Conectar ao Sybase
         connection = self.get_sybase_connection()
         if not connection:
@@ -52,14 +64,14 @@ class Command(BaseETLCommand):
         
         # Configurações de importação
         BATCH_SIZE = 1000  # Cupons por bloco
-        MAX_CUPONS = 10000  # Limite para teste (10 mil cupons)
+        # Removido limite - importação completa
         
         # ABORDAGEM ULTRA OTIMIZADA - Cupons únicos primeiro
         self.stdout.write("Executando query otimizada de cupons únicos...")
         
-        # PASSO 1: Buscar apenas cupons únicos (sem itens)
-        query_cupons = f"""
-        SELECT TOP {MAX_CUPONS}
+        # PASSO 1: Buscar apenas cupons únicos (sem itens) - SEM LIMITE
+        query_cupons = """
+        SELECT 
             emp.nome_emp,  
             emp.cgce_emp,
             ef.codi_emp, 
@@ -73,7 +85,7 @@ class Command(BaseETLCommand):
         ORDER BY ef.codi_emp, ef.I_CFE
         """
         
-        self.stdout.write(f"[2/5] Processando {MAX_CUPONS:,} cupons únicos...")
+        self.stdout.write("[2/6] Processando cupons únicos (sem limitação)...")
         
         cursor.execute(query_cupons)
         data_cupons = cursor.fetchall()
@@ -86,11 +98,11 @@ class Command(BaseETLCommand):
         columns_cupons = [column[0] for column in cursor.description]
         cupons_dict = [dict(zip(columns_cupons, row)) for row in data_cupons]
         
-        self.stdout.write(f"[3/5] Processando {len(cupons_dict):,} cupons únicos...")
+        self.stdout.write(f"[3/6] Processando {len(cupons_dict):,} cupons únicos...")
         
         # Estatísticas
         total_notas_criadas = 0
-        total_notas_atualizadas = 0
+        total_notas_puladas = 0  # Notas que já existiam
         total_itens_criados = 0
         total_sem_contabilidade = 0
         total_erros = 0
@@ -126,7 +138,7 @@ class Command(BaseETLCommand):
                 
                 # Buscar contabilidade diretamente no mapa
                 contabilidade = None
-                for data_inicio, data_termino, contab in contratos_empresa:
+                for data_inicio, data_termino, contab, contrato in contratos_empresa:
                     if data_inicio and data_termino and data_inicio <= data_cupom <= data_termino:
                         contabilidade = contab
                         break
@@ -159,33 +171,36 @@ class Command(BaseETLCommand):
                     valor_item = Decimal(str(item_row[5] or 0))  # VALOR_PRODUTO
                     valor_total_cupom += valor_item
                 
-                # Criar NotaFiscal com valor total calculado
+                # Verificar se a nota fiscal já existe - PULAR se existir (não sobrescrever)
+                nota_existente = NotaFiscal.objects.filter(
+                    contabilidade=contabilidade,
+                    chave_acesso=cupom_data['chave_cfe']
+                ).first()
+                
+                if nota_existente:
+                    # Nota já existe - pular para próxima (otimização)
+                    total_notas_puladas += 1
+                    continue
+                
+                # Criar NotaFiscal apenas se não existir
                 with transaction.atomic():
-                    nota_fiscal, created = NotaFiscal.objects.update_or_create(
+                    nota_fiscal = NotaFiscal.objects.create(
                         contabilidade=contabilidade,
                         chave_acesso=cupom_data['chave_cfe'],
-                        defaults={
-                            'numero_documento': str(cupom_data['I_CFE']),
-                            'serie': 'CFE',
-                            'data_emissao': cupom_data['DATA_CFE'],
-                            'data_entrada_saida': cupom_data['DATA_CFE'],
-                            'situacao': 'AUTORIZADA',
-                            'tipo_nota': 'SAIDA',
-                            'valor_total': valor_total_cupom,
-                            'parceiro_pf': pessoa,
-                            'id_legado_nota': f"{cupom_data['codi_emp']}-{cupom_data['I_CFE']}",
-                            'id_legado_empresa': str(cupom_data['codi_emp']),
-                            'id_legado_cli_for': str(cupom_data['I_CFE']),
-                        }
+                        numero_documento=str(cupom_data['I_CFE']),
+                        serie='CFE',
+                        data_emissao=cupom_data['DATA_CFE'],
+                        data_entrada_saida=cupom_data['DATA_CFE'],
+                        situacao='AUTORIZADA',
+                        tipo_nota='SAIDA',
+                        valor_total=valor_total_cupom,
+                        parceiro_pf=pessoa,
+                        id_legado_nota=f"{cupom_data['codi_emp']}-{cupom_data['I_CFE']}",
+                        id_legado_empresa=str(cupom_data['codi_emp']),
+                        id_legado_cli_for=str(cupom_data['I_CFE']),
                     )
                     
-                    if created:
-                        total_notas_criadas += 1
-                    else:
-                        total_notas_atualizadas += 1
-                    
-                    # Limpar itens existentes para reprocessar
-                    NotaFiscalItem.objects.filter(nota_fiscal=nota_fiscal).delete()
+                    total_notas_criadas += 1
                     
                     # Criar itens do cupom
                     for i, item_row in enumerate(itens_data, 1):
@@ -211,12 +226,12 @@ class Command(BaseETLCommand):
         connection.close()
         
         # Resumo final
-        self.stdout.write(self.style.SUCCESS(f"\n[4/5] RESUMO FINAL:"))
-        self.stdout.write(f"  ✓ Cupons processados: {len(cupons_dict):,}")
-        self.stdout.write(f"  ✓ Notas fiscais criadas: {total_notas_criadas:,}")
-        self.stdout.write(f"  ✓ Notas fiscais atualizadas: {total_notas_atualizadas:,}")
-        self.stdout.write(f"  ✓ Itens criados: {total_itens_criados:,}")
-        self.stdout.write(f"  ✗ Sem contabilidade: {total_sem_contabilidade:,}")
-        self.stdout.write(f"  ✗ Erros: {total_erros:,}")
+        self.stdout.write(self.style.SUCCESS(f"\n[4/6] RESUMO FINAL:"))
+        self.stdout.write(f"  Cupons processados: {len(cupons_dict):,}")
+        self.stdout.write(f"  Notas fiscais criadas: {total_notas_criadas:,}")
+        self.stdout.write(f"  Notas fiscais puladas (ja existiam): {total_notas_puladas:,}")
+        self.stdout.write(f"  Itens criados: {total_itens_criados:,}")
+        self.stdout.write(f"  Sem contabilidade: {total_sem_contabilidade:,}")
+        self.stdout.write(f"  Erros: {total_erros:,}")
         
         self.stdout.write(self.style.SUCCESS("\n=== ETL 17 CONCLUÍDA (COMPLETA) ==="))

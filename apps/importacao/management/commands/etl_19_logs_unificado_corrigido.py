@@ -99,9 +99,17 @@ class Command(BaseETLCommand):
             'sybase_queries': 0,
             'contabilidade_found': 0,
             'contabilidade_not_found': 0,
+            'sem_usuario': 0,
+            'sem_empresa': 0,
+            'sem_vinculo': 0,
             'tempo_inicio': time.time(),
             'tempo_fim': 0,
         }
+        
+        # Inicializar caches
+        self.cache_usuarios = {}
+        self.cache_empresas = {}
+        self.cache_vinculos = {}
 
         if self.dry_run:
             self.stdout.write(self.style.WARNING('MODO DRY-RUN: Nenhum dado será salvo no banco'))
@@ -114,6 +122,10 @@ class Command(BaseETLCommand):
             # 1. Construir mapa histórico de contabilidades
             self.stdout.write('\n[1] Construindo mapa histórico de contabilidades...')
             historical_map = self.build_historical_contabilidade_map_cached()
+            
+            # 1.5. Pré-carregar caches de usuários, empresas e vínculos
+            self.stdout.write('\n[1.5] Pré-carregando caches de usuários, empresas e vínculos...')
+            self.carregar_caches()
 
             # 2. Conectar ao Sybase
             connection = self.get_sybase_connection()
@@ -185,8 +197,17 @@ class Command(BaseETLCommand):
             lote = atividades_data[i:i + self.batch_size]
             self.processar_lote_atividades(lote, historical_map)
             
-            if (i // self.batch_size + 1) % self.progress_interval == 0:
-                self.stdout.write(f'Processadas {i + len(lote):,} atividades...')
+            # Exibir progresso a cada N lotes
+            batch_num = i // self.batch_size + 1
+            if batch_num % 10 == 0:  # A cada 10 lotes (~10k registros)
+                self.stdout.write(
+                    f'Progresso: {i + len(lote):,} atividades | '
+                    f'Criadas: {self.stats["atividades_criadas"]:,} | '
+                    f'Sem usuário: {self.stats["sem_usuario"]:,} | '
+                    f'Sem empresa: {self.stats["sem_empresa"]:,} | '
+                    f'Sem vínculo: {self.stats["sem_vinculo"]:,} | '
+                    f'Erros: {self.stats["erros"]:,}'
+                )
 
     def processar_lote_atividades(self, lote, historical_map):
         """Processa um lote de atividades NORMALIZADO"""
@@ -287,8 +308,14 @@ class Command(BaseETLCommand):
             lote = importacoes_data[i:i + self.batch_size]
             self.processar_lote_importacoes(lote, historical_map, tipo)
             
-            if (i // self.batch_size + 1) % self.progress_interval == 0:
-                self.stdout.write(f'Processadas {i + len(lote):,} importações de {tipo}...')
+            # Exibir progresso a cada 10 lotes
+            batch_num = i // self.batch_size + 1
+            if batch_num % 10 == 0:
+                self.stdout.write(
+                    f'Progresso {tipo}: {i + len(lote):,} | '
+                    f'Criadas: {self.stats["importacoes_criadas"]:,} | '
+                    f'Erros: {self.stats["erros"]:,}'
+                )
 
     def processar_lote_importacoes(self, lote, historical_map, tipo):
         """Processa um lote de importações NORMALIZADO"""
@@ -374,8 +401,14 @@ class Command(BaseETLCommand):
             lote = lancamentos_data[i:i + self.batch_size]
             self.processar_lote_lancamentos(lote, historical_map)
             
-            if (i // self.batch_size + 1) % self.progress_interval == 0:
-                self.stdout.write(f'Processados {i + len(lote):,} lançamentos...')
+            # Exibir progresso a cada 10 lotes
+            batch_num = i // self.batch_size + 1
+            if batch_num % 10 == 0:
+                self.stdout.write(
+                    f'Progresso: {i + len(lote):,} lançamentos | '
+                    f'Criados: {self.stats["lancamentos_criados"]:,} | '
+                    f'Erros: {self.stats["erros"]:,}'
+                )
 
     def processar_lote_lancamentos(self, lote, historical_map):
         """Processa um lote de lançamentos NORMALIZADO"""
@@ -429,55 +462,80 @@ class Command(BaseETLCommand):
                 if self.stats['erros'] <= 10:
                     self.stdout.write(self.style.ERROR(f'Erro ao processar lançamento: {e}'))
 
+    def carregar_caches(self):
+        """
+        Pré-carrega caches de usuários, empresas e vínculos para otimizar performance
+        """
+        # Cache de usuários
+        usuarios = Usuario.objects.all()
+        for usuario in usuarios:
+            self.cache_usuarios[usuario.nome_usuario] = usuario
+        self.stdout.write(f'  - {len(self.cache_usuarios)} usuários carregados')
+        
+        # Cache de empresas
+        empresas = PessoaJuridica.objects.all()
+        for empresa in empresas:
+            self.cache_empresas[empresa.cnpj] = empresa
+        self.stdout.write(f'  - {len(self.cache_empresas)} empresas carregadas')
+        
+        # Cache de vínculos (usuario_nome + cnpj -> contabilidade)
+        vinculos = UsuarioContabilidade.objects.filter(ativo=True).select_related('usuario', 'contabilidade')
+        for vinculo in vinculos:
+            chave = f"{vinculo.usuario.nome_usuario}|{vinculo.empresa_cnpj}"
+            # Armazenar o primeiro vínculo encontrado (pode haver múltiplos)
+            if chave not in self.cache_vinculos:
+                self.cache_vinculos[chave] = vinculo.contabilidade
+        self.stdout.write(f'  - {len(self.cache_vinculos)} vínculos carregados')
+    
     def buscar_objetos_relacionados(self, usuario_nome, cnpj_empresa, data_evento, historical_map):
         """
-        NOVA FUNÇÃO NORMALIZADA: Busca usuário, empresa e contabilidade
+        FUNÇÃO OTIMIZADA COM REGRA DE OURO: Busca usuário, empresa e contabilidade
+        
+        USA O HISTORICAL_MAP (REGRA DE OURO) para encontrar a Contabilidade correta
+        baseado no CNPJ da empresa e na data do evento.
+        
+        IMPORTANTE: Não valida data do vínculo - permite importar logs de retificações históricas
+        (usuário pode ter feito modificações antes da data de início do vínculo)
         
         Retorna: (usuario, empresa, contabilidade) ou (None, None, None) se erro
         """
         try:
-            # 1. Buscar usuário
-            try:
-                usuario = Usuario.objects.get(nome_usuario=usuario_nome)
-            except Usuario.DoesNotExist:
-                self.stdout.write(self.style.WARNING(f'Usuário {usuario_nome} não encontrado. Pulando registro.'))
+            # 1. Buscar usuário no cache
+            usuario = self.cache_usuarios.get(usuario_nome)
+            if not usuario:
+                self.stats['sem_usuario'] += 1
                 return None, None, None
             
-            # 2. Buscar empresa
-            try:
-                empresa = PessoaJuridica.objects.get(cnpj=cnpj_empresa)
-            except PessoaJuridica.DoesNotExist:
-                self.stdout.write(self.style.WARNING(f'Empresa {cnpj_empresa} não encontrada. Pulando registro.'))
+            # 2. Buscar empresa no cache
+            empresa = self.cache_empresas.get(cnpj_empresa)
+            if not empresa:
+                self.stats['sem_empresa'] += 1
                 return None, None, None
             
-            # 3. Buscar vínculo usuário-empresa-contabilidade
-            vinculos = UsuarioContabilidade.objects.filter(
-                usuario=usuario,
-                empresa_cnpj=cnpj_empresa,
-                ativo=True
-            )
+            # 3. APLICAR REGRA DE OURO: Buscar contabilidade usando historical_map
+            # Converte data_evento para objeto date se for string
+            if isinstance(data_evento, str):
+                from datetime import datetime
+                data_evento = datetime.strptime(data_evento, '%Y-%m-%d').date()
             
-            if not vinculos.exists():
-                self.stdout.write(self.style.WARNING(f'Usuário {usuario_nome} não tem vínculo com empresa {cnpj_empresa}. Pulando registro.'))
-                return None, None, None
+            # Buscar no historical_map usando CNPJ + data
+            contabilidade = historical_map.get((cnpj_empresa, data_evento))
             
-            # 4. Validar se o vínculo está ativo na data do evento
-            vinculo_valido = None
-            for vinculo in vinculos:
-                if (vinculo.data_inicio <= data_evento and 
-                    (vinculo.data_fim is None or data_evento <= vinculo.data_fim)):
-                    vinculo_valido = vinculo
-                    break
+            if not contabilidade:
+                # Fallback: tentar buscar vínculo direto (para casos onde historical_map não tem)
+                chave = f"{usuario_nome}|{cnpj_empresa}"
+                contabilidade = self.cache_vinculos.get(chave)
+                
+                if not contabilidade:
+                    self.stats['sem_vinculo'] += 1
+                    return None, None, None
             
-            if not vinculo_valido:
-                self.stdout.write(self.style.WARNING(f'Vínculo do usuário {usuario_nome} com empresa {cnpj_empresa} não está ativo na data {data_evento}. Pulando registro.'))
-                return None, None, None
-            
-            # 5. Retornar objetos relacionados
-            return usuario, empresa, vinculo_valido.contabilidade
+            # 4. Retornar objetos relacionados
+            self.stats['cache_hits'] += 1
+            return usuario, empresa, contabilidade
             
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f'Erro ao buscar objetos relacionados para usuário {usuario_nome}, empresa {cnpj_empresa}: {e}'))
+            self.stats['erros'] += 1
             return None, None, None
 
     def gerar_estatisticas_consolidadas(self):
@@ -665,7 +723,7 @@ class Command(BaseETLCommand):
         tempo_total = self.stats['tempo_fim'] - self.stats['tempo_inicio']
         
         self.stdout.write('\n' + '='*80)
-        self.stdout.write('RELATÓRIO FINAL - ETL 19 LOGS UNIFICADOS NORMALIZADOS')
+        self.stdout.write('RELATÓRIO FINAL - ETL 19 LOGS UNIFICADOS NORMALIZADOS (OTIMIZADO)')
         self.stdout.write('='*80)
         
         if self.tipo in ['atividades', 'todos']:
@@ -687,12 +745,32 @@ class Command(BaseETLCommand):
             self.stdout.write(f'📊 ESTATÍSTICAS:')
             self.stdout.write(f'  - Criadas: {self.stats["estatisticas_criadas"]:,}')
         
-        self.stdout.write(f'❌ ERROS: {self.stats["erros"]:,}')
-        self.stdout.write(f'⏱️  TEMPO TOTAL: {tempo_total:.2f} segundos')
+        self.stdout.write(f'\n🔍 VALIDAÇÕES:')
+        self.stdout.write(f'  - Sem usuário: {self.stats["sem_usuario"]:,}')
+        self.stdout.write(f'  - Sem empresa: {self.stats["sem_empresa"]:,}')
+        self.stdout.write(f'  - Sem vínculo: {self.stats["sem_vinculo"]:,}')
+        
+        self.stdout.write(f'\n⚡ PERFORMANCE:')
+        self.stdout.write(f'  - Cache hits: {self.stats["cache_hits"]:,}')
+        self.stdout.write(f'  - Usuários em cache: {len(self.cache_usuarios):,}')
+        self.stdout.write(f'  - Empresas em cache: {len(self.cache_empresas):,}')
+        self.stdout.write(f'  - Vínculos em cache: {len(self.cache_vinculos):,}')
+        
+        registros_por_segundo = (
+            self.stats["atividades_processadas"] + 
+            self.stats["importacoes_processadas"] + 
+            self.stats["lancamentos_processados"]
+        ) / tempo_total if tempo_total > 0 else 0
+        
+        self.stdout.write(f'  - Registros/segundo: {registros_por_segundo:.2f}')
+        
+        self.stdout.write(f'\n❌ ERROS: {self.stats["erros"]:,}')
+        self.stdout.write(f'⏱️  TEMPO TOTAL: {tempo_total:.2f} segundos ({tempo_total/60:.2f} minutos)')
         
         if self.dry_run:
             self.stdout.write(self.style.WARNING('\n⚠️  MODO DRY-RUN: Nenhum dado foi salvo no banco'))
         else:
             self.stdout.write(self.style.SUCCESS('\n✅ Importação NORMALIZADA concluída com sucesso!'))
         
+        self.stdout.write('\n💡 NOTA: Logs de retificações históricas são importados independente da data do vínculo')
         self.stdout.write('='*80)

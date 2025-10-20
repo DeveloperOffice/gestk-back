@@ -25,9 +25,10 @@ class Command(BaseETLCommand):
     def handle(self, *args, **options):
         self.stdout.write(self.style.SUCCESS('--- Iniciando ETL de Departamentos de RH ---'))
 
-        self.stdout.write(self.style.HTTP_INFO('\n[1/3] Construindo mapas de CNPJ/CPF para Contabilidade...'))
-        cnpj_map, cpf_map = self.build_contabilidade_maps()
-        self.stdout.write(self.style.SUCCESS(f"✓ Mapas construídos com {len(cnpj_map):,} CNPJs e {len(cpf_map):,} CPFs."))
+        # PASSO 1: Construir mapa histórico de CNPJ/CPF -> Contabilidade (REGRA DE OURO)
+        self.stdout.write(self.style.HTTP_INFO('\n[1/3] Construindo mapa histórico de contabilidades (últimos 5 anos)...'))
+        historical_map = self.build_historical_contabilidade_map()
+        self.stdout.write(self.style.SUCCESS(f"✓ Mapa histórico construído com {len(historical_map):,} empresas únicas."))
 
         connection = self.get_sybase_connection()
         if not connection: return
@@ -61,16 +62,15 @@ class Command(BaseETLCommand):
                 for row in lote:
                     try:
                         documento_empregador = self.limpar_documento(row['cgce_emp'])
-                        contabilidade = None
-
-                        if len(documento_empregador) == 14:
-                            contabilidade = cnpj_map.get(documento_empregador)
-                        elif len(documento_empregador) == 11:
-                            contabilidade = cpf_map.get(documento_empregador)
                         
-                        if not contabilidade:
+                        # Aplicar REGRA DE OURO: buscar contabilidade via mapa histórico
+                        contratos = historical_map.get(documento_empregador)
+                        if not contratos:
                             stats['sem_contabilidade'] += 1
                             continue
+                        
+                        # Pegar a contabilidade do contrato mais recente
+                        contabilidade = contratos[0][2]  # (data_inicio, data_termino, contabilidade, contrato)
                         
                         defaults = {
                             'nome': row['nome'],
@@ -99,36 +99,7 @@ class Command(BaseETLCommand):
         self.stdout.write(self.style.ERROR(f"  - Erros: {stats['erros']}"))
         self.stdout.write(self.style.SUCCESS('--- ETL de Departamentos de RH Finalizado ---'))
 
-    def build_contabilidade_maps(self):
-        cnpj_map = {}
-        cpf_map = {}
-        pj_content_type = ContentType.objects.get_for_model(PessoaJuridica)
-        contratos_pj = Contrato.objects.filter(content_type=pj_content_type, ativo=True).order_by('object_id', '-data_inicio').distinct('object_id').select_related('contabilidade')
-        
-        pj_ids = [c.object_id for c in contratos_pj]
-        pessoas_juridicas = PessoaJuridica.objects.filter(id__in=pj_ids).in_bulk()
 
-        for contrato in contratos_pj:
-            pessoa = pessoas_juridicas.get(contrato.object_id)
-            if pessoa:
-                cnpj_limpo = self.limpar_documento(pessoa.cnpj)
-                if cnpj_limpo:
-                    cnpj_map[cnpj_limpo] = contrato.contabilidade
-
-        pf_content_type = ContentType.objects.get_for_model(PessoaFisica)
-        contratos_pf = Contrato.objects.filter(content_type=pf_content_type, ativo=True).order_by('object_id', '-data_inicio').distinct('object_id').select_related('contabilidade')
-        
-        pf_ids = [c.object_id for c in contratos_pf]
-        pessoas_fisicas = PessoaFisica.objects.filter(id__in=pf_ids).in_bulk()
-
-        for contrato in contratos_pf:
-            pessoa = pessoas_fisicas.get(contrato.object_id)
-            if pessoa:
-                cpf_limpo = self.limpar_documento(pessoa.cpf)
-                if cpf_limpo:
-                    cpf_map[cpf_limpo] = contrato.contabilidade
-        
-        return cnpj_map, cpf_map
     
     def limpar_documento(self, documento):
         return re.sub(r'\D', '', str(documento or ''))

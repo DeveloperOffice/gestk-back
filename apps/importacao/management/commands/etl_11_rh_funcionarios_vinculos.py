@@ -80,11 +80,27 @@ class Command(BaseETLCommand):
             with transaction.atomic():
                 for row in lote:
                     try:
-                        # 1. Resolver Tenant usando a nova lógica
-                        codi_emp = row['codi_emp']
+                        # 1. Resolver Tenant usando REGRA DE OURO
+                        doc_empregador = self.limpar_documento(row['cgce_emp'])
                         data_admissao = row['admissao']
                         
-                        contabilidade = self.get_contabilidade_for_date(historical_map, codi_emp, data_admissao)
+                        # Buscar contabilidade via historical_map
+                        contratos = historical_map.get(doc_empregador)
+                        if not contratos:
+                            stats['sem_contabilidade'] += 1
+                            continue
+                        
+                        # Aplicar REGRA DE OURO: buscar contrato válido na data de admissão
+                        contabilidade = None
+                        for data_inicio, data_termino, contab, contrato in contratos:
+                            if data_inicio and data_termino and data_inicio <= data_admissao <= data_termino:
+                                contabilidade = contab
+                                break
+                        
+                        if not contabilidade:
+                            # Se não encontrou contrato ativo na data, usa o mais recente
+                            contabilidade = contratos[0][2]
+                        
                         if not contabilidade:
                             stats['sem_contabilidade'] += 1
                             continue

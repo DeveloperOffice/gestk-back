@@ -109,8 +109,10 @@ class Command(BaseETLCommand):
             fg.codi_emp, fg.i_empregados, fg.i_ferias_aquisitivos, fg.i_ferias_gozo,
             fg.gozo_inicio, fg.gozo_fim,
             (SELECT SUM(fgt.numero_dias) FROM bethadba.FOFERIAS_GOZO_TIPO fgt WHERE fgt.i_ferias_gozo = fg.i_ferias_gozo AND fgt.i_ferias_gozo_tipo = 1) as dias_gozo,
-            (SELECT SUM(fgt.numero_dias) FROM bethadba.FOFERIAS_GOZO_TIPO fgt WHERE fgt.i_ferias_gozo = fg.i_ferias_gozo AND fgt.i_ferias_gozo_tipo = 2) as dias_abono
+            (SELECT SUM(fgt.numero_dias) FROM bethadba.FOFERIAS_GOZO_TIPO fgt WHERE fgt.i_ferias_gozo = fg.i_ferias_gozo AND fgt.i_ferias_gozo_tipo = 2) as dias_abono,
+            e.cgce_emp
         FROM bethadba.FOFERIAS_GOZO fg
+        JOIN bethadba.geempre e ON fg.codi_emp = e.codi_emp
         WHERE fg.gozo_inicio >= '2019-01-01'
         """
         return self.execute_query(connection, query)
@@ -123,10 +125,24 @@ class Command(BaseETLCommand):
             with transaction.atomic():
                 for row in lote:
                     try:
-                        codi_emp = row['codi_emp']
+                        doc_empregador = self.limpar_documento(row['cgce_emp'])
                         data_inicio_gozo = row['gozo_inicio']
 
-                        contabilidade = self.get_contabilidade_for_date(historical_map, codi_emp, data_inicio_gozo)
+                        # Buscar contabilidade via REGRA DE OURO
+                        contratos = historical_map.get(doc_empregador)
+                        if not contratos:
+                            stats['sem_contabilidade'] += 1
+                            continue
+                        
+                        # Buscar contrato válido na data ou usar o mais recente
+                        contabilidade = None
+                        for data_inicio, data_termino, contab, contrato in contratos:
+                            if data_inicio and data_termino and data_inicio <= data_inicio_gozo <= data_termino:
+                                contabilidade = contab
+                                break
+                        if not contabilidade:
+                            contabilidade = contratos[0][2]
+                        
                         if not contabilidade:
                             stats['sem_contabilidade'] += 1
                             continue
@@ -150,7 +166,6 @@ class Command(BaseETLCommand):
                         }
                         
                         gozo, created = GozoFerias.objects.update_or_create(
-                            contabilidade=contabilidade,
                             periodo_aquisitivo=periodo_aquisitivo_obj,
                             id_legado=str(id_legado_gozo),
                             defaults=defaults

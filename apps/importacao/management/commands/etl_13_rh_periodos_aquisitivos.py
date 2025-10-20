@@ -36,10 +36,11 @@ class Command(BaseETLCommand):
             query = """
             SELECT 
                 fa.codi_emp, fa.i_empregados, fa.i_ferias_aquisitivos,
-                fa.ini_per_aquis as data_inicio, fa.fim_per_aquis as data_fim,
-                fa.dias_direito, fa.situacao -- 1=Aberto, 2=Fechado, 3=Programado
+                fa.data_inicio, fa.data_fim,
+                fa.dias_direito, fa.situacao, e.cgce_emp
             FROM bethadba.FOFERIAS_AQUISITIVOS fa
-            WHERE fa.ini_per_aquis >= '2019-01-01'
+            JOIN bethadba.geempre e ON fa.codi_emp = e.codi_emp
+            WHERE fa.data_inicio >= '2019-01-01'
             """
             data = self.execute_query(connection, query)
             if not data:
@@ -80,10 +81,24 @@ class Command(BaseETLCommand):
             with transaction.atomic():
                 for row in lote:
                     try:
-                        codi_emp = row['codi_emp']
+                        doc_empregador = self.limpar_documento(row['cgce_emp'])
                         data_inicio_periodo = row['data_inicio']
 
-                        contabilidade = self.get_contabilidade_for_date(historical_map, codi_emp, data_inicio_periodo)
+                        # Buscar contabilidade via REGRA DE OURO
+                        contratos = historical_map.get(doc_empregador)
+                        if not contratos:
+                            stats['sem_contabilidade'] += 1
+                            continue
+                        
+                        # Buscar contrato válido na data ou usar o mais recente
+                        contabilidade = None
+                        for data_inicio, data_termino, contab, contrato in contratos:
+                            if data_inicio and data_termino and data_inicio <= data_inicio_periodo <= data_termino:
+                                contabilidade = contab
+                                break
+                        if not contabilidade:
+                            contabilidade = contratos[0][2]
+                        
                         if not contabilidade:
                             stats['sem_contabilidade'] += 1
                             continue
@@ -102,7 +117,6 @@ class Command(BaseETLCommand):
                         }
                         
                         periodo, created = PeriodoAquisitivoFerias.objects.update_or_create(
-                            contabilidade=contabilidade,
                             vinculo=vinculo_obj,
                             id_legado=str(row['i_ferias_aquisitivos']),
                             defaults=defaults

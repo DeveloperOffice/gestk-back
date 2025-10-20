@@ -12,7 +12,8 @@ from .views import (
     UsuarioViewSet,
     login_view,
     me_view,
-    logout_view
+    logout_view,
+    csrf_view
 )
 
 # Router para autenticação
@@ -34,4 +35,5 @@ urlpatterns = [
     path('login/', login_view, name='login'),
     path('me/', me_view, name='me'),
     path('logout/', logout_view, name='logout'),
+    path('csrf/', csrf_view, name='csrf'),  # Novo endpoint CSRF
 ]

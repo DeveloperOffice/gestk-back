@@ -90,7 +90,7 @@ class Command(BaseETLCommand):
         5. Filtrar apenas movimentos de rescisão (TIPO_PROCES = 11)
         6. Criar ID_LEGADO composto: codi_emp-i_empregados
         """
-        limit_clause = "TOP 10" if modo_teste else "TOP 1000"
+        limit_clause = "TOP 10" if modo_teste else ""  # Remover limite em produção
         
         query = f"""
         SELECT {limit_clause}
@@ -103,8 +103,8 @@ class Command(BaseETLCommand):
             fs.i_empregados,
             fs.demissao,
             ge.cgce_emp,
-            -- Criar ID_LEGADO composto para correspondência
-            CAST(fs.codi_emp AS VARCHAR) + '-' + CAST(fs.i_empregados AS VARCHAR) as id_legado_composto
+            -- Criar ID_LEGADO composto para correspondência (com RTRIM para remover espaços)
+            RTRIM(CAST(fs.codi_emp AS VARCHAR)) + '-' + RTRIM(CAST(fs.i_empregados AS VARCHAR)) as id_legado_composto
         FROM bethadba.FORESCISOES fs
         INNER JOIN bethadba.GEEMPRE ge ON ge.codi_emp = fs.codi_emp
         INNER JOIN bethadba.FOMOVTOSERV m ON 
@@ -123,7 +123,7 @@ class Command(BaseETLCommand):
         return self.execute_query(connection, query)
 
     def processar_dados_corretos(self, data, rescisoes_map, rubricas_map):
-        """Processamento CORRETO seguindo a Regra de Ouro: CNPJ/CPF + contabilidade_id."""
+        """Processamento simplificado: Rescisão já tem contabilidade."""
         stats = {
             'criados': 0,
             'atualizados': 0,
@@ -133,64 +133,30 @@ class Command(BaseETLCommand):
             'sem_contabilidade': 0
         }
         
-        # Controle de duplicatas por rescisão usando CNPJ/CPF + contabilidade_id
+        # Controle de duplicatas
         rubricas_processadas = set()
         
         for row in tqdm(data, desc="Processando Rubricas"):
             try:
-                # 1. Obter cgce_emp (CNPJ/CPF) da query
-                cgce_emp = row['cgce_emp']
-                if not cgce_emp:
-                    stats['sem_contabilidade'] += 1
-                    continue
-                
-                # 2. Limpar documento
-                documento_limpo = self.limpar_documento(cgce_emp)
-                if not documento_limpo:
-                    stats['sem_contabilidade'] += 1
-                    continue
-                
-                # 3. Buscar Contabilidade usando a Regra de Ouro
-                # Primeiro, buscar o CODI_EMP no Sybase para obter o CNPJ/CPF
-                codi_emp = row['codi_emp']
-                event_date = row['demissao']
-                
-                # Usar o método da classe base que já implementa a Regra de Ouro
-                historical_map = self.build_historical_contabilidade_map()
-                contabilidade = self.get_contabilidade_for_date(historical_map, codi_emp, event_date)
-                
-                if not contabilidade:
-                    stats['sem_contabilidade'] += 1
-                    continue
-                
-                # 4. Buscar rescisão usando CNPJ/CPF + contabilidade_id (NÃO id_legado)
-                rescisao = None
-                for r in rescisoes_map.values():
-                    if (r.contabilidade_id == contabilidade.id and 
-                        r.vinculo and r.vinculo.empresa):
-                        # Verificar se o CNPJ/CPF da empresa bate
-                        empresa_doc = None
-                        if hasattr(r.vinculo.empresa, 'cnpj') and r.vinculo.empresa.cnpj:
-                            empresa_doc = self.limpar_documento(r.vinculo.empresa.cnpj)
-                        elif hasattr(r.vinculo.empresa, 'cpf') and r.vinculo.empresa.cpf:
-                            empresa_doc = self.limpar_documento(r.vinculo.empresa.cpf)
-                        
-                        if empresa_doc == documento_limpo:
-                            rescisao = r
-                            break
+                # 1. Buscar rescisão pelo id_legado_composto da query
+                id_legado_composto = row['id_legado_composto']
+                rescisao = rescisoes_map.get(id_legado_composto)
                 
                 if not rescisao:
                     stats['sem_rescisao'] += 1
                     continue
                 
-                # 5. Verificar duplicata usando CNPJ/CPF + contabilidade_id + i_eventos
-                chave_rubrica = f"{documento_limpo}_{contabilidade.id}_{row['i_eventos']}_{row['tipo_rubrica']}"
+                # 2. A contabilidade vem da rescisão!
+                contabilidade = rescisao.contabilidade
+                
+                # 3. Verificar duplicata usando id_legado + i_eventos
+                chave_rubrica = f"{id_legado_composto}_{row['i_eventos']}_{row['tipo_rubrica']}"
                 if chave_rubrica in rubricas_processadas:
                     continue
                 
                 rubricas_processadas.add(chave_rubrica)
                 
-                # 6. Buscar rubrica correspondente
+                # 4. Buscar rubrica correspondente
                 id_legado_rubrica = str(row['i_eventos'])
                 rubrica_key = (contabilidade.id, id_legado_rubrica)
                 rubrica = rubricas_map.get(rubrica_key)
@@ -208,11 +174,13 @@ class Command(BaseETLCommand):
                     continue
                 
                 # 8. Criar/atualizar RescisaoRubrica usando CNPJ/CPF + contabilidade_id
+                tipo_rubrica = str(row['tipo_rubrica'])[:1] if row['tipo_rubrica'] else 'P'  # Pegar apenas 1º caractere
+                
                 with transaction.atomic():
                     rr, created = RescisaoRubrica.objects.update_or_create(
                         rescisao=rescisao,
                         rubrica=rubrica,
-                        tipo=row['tipo_rubrica'],
+                        tipo=tipo_rubrica,
                         descricao=row['descricao_rubrica'],
                         defaults={'valor': valor}
                     )

@@ -58,13 +58,13 @@ class Command(BaseETLCommand):
         return vinculos_map
 
     def extract_rescisoes(self, connection):
-        # Mantemos o TOP 100 para o teste
         query = """
-        SELECT TOP 100
-            codi_emp, i_empregados, demissao, motivo, data_aviso, aviso_indenizado,
-            salario, proventos, descontos, data_pagto, I_CALCULOS
-        FROM bethadba.forescisoes
-        WHERE demissao >= '2019-01-01'
+        SELECT
+            fr.codi_emp, fr.i_empregados, fr.demissao, fr.motivo, fr.data_aviso, fr.aviso_indenizado,
+            fr.salario, fr.proventos, fr.descontos, fr.data_pagto, fr.I_CALCULOS, ge.cgce_emp
+        FROM bethadba.forescisoes fr
+        JOIN bethadba.geempre ge ON fr.codi_emp = ge.codi_emp
+        WHERE fr.demissao >= '2019-01-01'
         """
         return self.execute_query(connection, query)
 
@@ -76,9 +76,23 @@ class Command(BaseETLCommand):
                 codi_emp = row['codi_emp']
                 i_empregados = row['i_empregados']
                 data_rescisao = row['demissao']
+                doc_empregador = self.limpar_documento(row['cgce_emp'])
 
-                # 1. Resolver a Contabilidade (Tenant) - Esta parte está correta
-                contabilidade = self.get_contabilidade_for_date(historical_map, codi_emp, data_rescisao)
+                # Buscar contabilidade via REGRA DE OURO
+                contratos = historical_map.get(doc_empregador)
+                if not contratos:
+                    stats['sem_contabilidade'] += 1
+                    continue
+                
+                # Buscar contrato válido na data ou usar o mais recente
+                contabilidade = None
+                for data_inicio, data_termino, contab, contrato in contratos:
+                    if data_inicio and data_termino and data_inicio <= data_rescisao <= data_termino:
+                        contabilidade = contab
+                        break
+                if not contabilidade:
+                    contabilidade = contratos[0][2]
+                
                 if not contabilidade:
                     stats['sem_contabilidade'] += 1
                     continue
@@ -94,6 +108,7 @@ class Command(BaseETLCommand):
                 id_legado_composto = f"{codi_emp}-{i_empregados}"
                 
                 defaults = {
+                    'data_rescisao': data_rescisao,  # ✅ Campo obrigatório que estava faltando!
                     'motivo_codigo': row['motivo'],
                     'salario_base': Decimal(row['salario'] or 0),
                     'proventos': Decimal(row['proventos'] or 0),
@@ -102,13 +117,13 @@ class Command(BaseETLCommand):
                     'data_aviso': row['data_aviso'],
                     'aviso_indenizado': True if row['aviso_indenizado'] == 'S' else False,
                     'data_pagamento': row['data_pagto'],
-                    'id_legado': id_legado_composto
+                    'id_legado': id_legado_composto,
+                    'status': 'homologada'  # Status default
                 }
 
                 rescisao, created = Rescisao.objects.update_or_create(
                     contabilidade=contabilidade,
                     vinculo=vinculo,
-                    data_rescisao=data_rescisao,
                     defaults=defaults
                 )
 

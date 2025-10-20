@@ -9,14 +9,22 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
+from django.middleware.csrf import get_token
+from django.http import JsonResponse
 
 from apps.core.models import Usuario
 from .serializers import CustomTokenObtainPairSerializer, UsuarioSerializer, LoginSerializer
 
 
+from django.utils.decorators import method_decorator
+
+
+@method_decorator(csrf_exempt, name='dispatch')
 class CustomTokenObtainPairView(TokenObtainPairView):
     """
     View customizada para obter tokens JWT com informações da contabilidade
+    CSRF exempt porque usa JWT para autenticação
     """
     permission_classes = [AllowAny]
     serializer_class = CustomTokenObtainPairSerializer
@@ -70,11 +78,13 @@ class UsuarioViewSet(ModelViewSet):
         return Usuario.objects.none()
 
 
+@csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_view(request):
     """
     Endpoint de login customizado
+    CSRF exempt porque usa JWT para autenticação
     """
     serializer = LoginSerializer(data=request.data)
     
@@ -136,6 +146,22 @@ def logout_view(request):
         return Response({"message": "Logout realizado com sucesso."})
     except Exception as e:
         return Response(
-            {"error": "Token inválido."}, 
+            {"error": "Erro ao realizar logout."}, 
             status=status.HTTP_400_BAD_REQUEST
         )
+
+
+@ensure_csrf_cookie
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def csrf_view(request):
+    """
+    Endpoint para obter CSRF token
+    Este endpoint é usado pelo frontend para obter o CSRF token
+    antes de fazer requisições que exigem CSRF
+    """
+    csrf_token = get_token(request)
+    return Response({
+        'csrfToken': csrf_token,
+        'detail': 'CSRF cookie set'
+    })

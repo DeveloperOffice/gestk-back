@@ -290,29 +290,41 @@ class Command(BaseETLCommand):
             if not contabilidades_empresa:
                 continue
 
-            # Cria usuário para cada contabilidade
+            # Cria usuário GLOBAL (único por id_legado)
+            if not self.dry_run:
+                usuario_obj, created = Usuario.objects.get_or_create(
+                    id_legado=nome_usuario,
+                    defaults={
+                        'nome_usuario': nome_usuario,
+                        'tipo_usuario': tipo_usuario,
+                        'ativo': True,
+                        'data_ultimo_acesso': self.gerar_data_ultimo_acesso(),
+                    }
+                )
+                if created:
+                    usuarios_criados += 1
+            
+            # Cria vínculos usuário-contabilidade para cada contabilidade
             for contabilidade in contabilidades_empresa:
                 if not self.dry_run:
-                    usuario_obj, created = Usuario.objects.update_or_create(
-                        contabilidade=contabilidade,
-                        cnpj_empresa=cnpj_limpo,
-                        id_legado=nome_usuario,
-                        defaults={
-                            'nome_usuario': nome_usuario,
-                            'tipo_usuario': tipo_usuario,
-                            'ativo': True,
-                            'data_ultimo_acesso': self.gerar_data_ultimo_acesso(),
-                        }
-                    )
-                    if created:
-                        usuarios_criados += 1
-
+                    # Buscar empresa PessoaJuridica pelo CNPJ
+                    from apps.pessoas.models import PessoaJuridica
+                    try:
+                        empresa = PessoaJuridica.objects.get(cnpj=cnpj_limpo)
+                        empresa_nome = empresa.nome_fantasia or empresa.razao_social
+                    except PessoaJuridica.DoesNotExist:
+                        # Se não encontrar, usar dados do vínculo
+                        empresa_nome = vinculo.get('CP_EMPRESA', 'Empresa não encontrada')
+                    
                     # Cria vínculo usuário-contabilidade
                     UsuarioContabilidade.objects.update_or_create(
                         contabilidade=contabilidade,
                         usuario=usuario_obj,
-                        data_inicio=datetime(2023, 1, 1),
+                        empresa_cnpj=cnpj_limpo,
                         defaults={
+                            'empresa_nome': empresa_nome,
+                            'data_inicio': datetime(2023, 1, 1).date(),
+                            'data_fim': None,
                             'ativo': True,
                             'modulos_acesso': [vinculo['CP_MODULO']],
                         }
@@ -341,7 +353,7 @@ class Command(BaseETLCommand):
         contratos = historical_map[cnpj_limpo]
         contabilidades = []
         
-        for data_inicio, data_termino, contabilidade in contratos:
+        for data_inicio, data_termino, contabilidade, contrato in contratos:
             # Incluir contabilidade se teve contrato em qualquer período
             if contabilidade not in contabilidades:
                 contabilidades.append(contabilidade)

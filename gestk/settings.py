@@ -319,4 +319,10 @@ CSRF_TRUSTED_ORIGINS = [
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False  # Para permitir acesso via JavaScript
 CSRF_USE_SESSIONS = False  # Para APIs JWT
+CSRF_COOKIE_SECURE = False  # True em produção com HTTPS
+CSRF_COOKIE_NAME = 'csrftoken'
+
+# Desabilitar CSRF para endpoints de API que usam JWT
+# O CSRF será usado apenas para Django Admin
+CSRF_FAILURE_VIEW = 'django.views.csrf.csrf_failure'
 

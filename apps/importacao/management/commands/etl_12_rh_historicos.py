@@ -29,8 +29,9 @@ class Command(BaseETLCommand):
     def processar_historico_salarios(self, connection, historical_map, vinculos_map):
         self.stdout.write(self.style.HTTP_INFO('\n[2/3] Processando Histórico de Salários (desde 2019)...'))
         query = """
-        SELECT a.codi_emp, a.i_empregados, a.competencia, a.novo_salario, a.motivo
+        SELECT a.codi_emp, a.i_empregados, a.competencia, a.novo_salario, a.motivo, e.cgce_emp
         FROM bethadba.foaltesal a
+        JOIN bethadba.geempre e ON a.codi_emp = e.codi_emp
         WHERE a.competencia >= '2019-01-01'
         """
         data = self.execute_query(connection, query)
@@ -38,10 +39,24 @@ class Command(BaseETLCommand):
 
         for row in tqdm(data, desc="Processando Hist. Salários"):
             try:
-                codi_emp = row['codi_emp']
+                doc_empregador = self.limpar_documento(row['cgce_emp'])
                 data_mudanca = row['competencia']
 
-                contabilidade = self.get_contabilidade_for_date(historical_map, codi_emp, data_mudanca)
+                # Buscar contabilidade via REGRA DE OURO
+                contratos = historical_map.get(doc_empregador)
+                if not contratos:
+                    stats['sem_contabilidade'] += 1
+                    continue
+                
+                # Buscar contrato válido na data ou usar o mais recente
+                contabilidade = None
+                for data_inicio, data_termino, contab, contrato in contratos:
+                    if data_inicio and data_termino and data_inicio <= data_mudanca <= data_termino:
+                        contabilidade = contab
+                        break
+                if not contabilidade:
+                    contabilidade = contratos[0][2]
+                
                 if not contabilidade:
                     stats['sem_contabilidade'] += 1
                     continue
@@ -70,8 +85,9 @@ class Command(BaseETLCommand):
     def processar_historico_cargos(self, connection, historical_map, vinculos_map, cargos_map):
         self.stdout.write(self.style.HTTP_INFO('\n[3/3] Processando Histórico de Cargos (desde 2019)...'))
         query = """
-        SELECT t.codi_emp, t.i_empregados, t.data_troca, t.novo_codigo
+        SELECT t.codi_emp, t.i_empregados, t.data_troca, t.novo_codigo, e.cgce_emp
         FROM bethadba.fotrocas t
+        JOIN bethadba.geempre e ON t.codi_emp = e.codi_emp
         WHERE t.tabela_troca = 2 AND t.data_troca >= '2019-01-01'
         """
         data = self.execute_query(connection, query)
@@ -79,10 +95,24 @@ class Command(BaseETLCommand):
 
         for row in tqdm(data, desc="Processando Hist. Cargos"):
             try:
-                codi_emp = row['codi_emp']
+                doc_empregador = self.limpar_documento(row['cgce_emp'])
                 data_mudanca = row['data_troca']
 
-                contabilidade = self.get_contabilidade_for_date(historical_map, codi_emp, data_mudanca)
+                # Buscar contabilidade via REGRA DE OURO
+                contratos = historical_map.get(doc_empregador)
+                if not contratos:
+                    stats['sem_contabilidade'] += 1
+                    continue
+                
+                # Buscar contrato válido na data ou usar o mais recente
+                contabilidade = None
+                for data_inicio, data_termino, contab, contrato in contratos:
+                    if data_inicio and data_termino and data_inicio <= data_mudanca <= data_termino:
+                        contabilidade = contab
+                        break
+                if not contabilidade:
+                    contabilidade = contratos[0][2]
+                
                 if not contabilidade:
                     stats['sem_contabilidade'] += 1
                     continue

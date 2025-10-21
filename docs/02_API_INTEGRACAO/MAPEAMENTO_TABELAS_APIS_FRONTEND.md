@@ -32,7 +32,8 @@ A **Regra de Ouro** é aplicada automaticamente em todos os endpoints através d
 ### **Status Atual (21/10/2025)**
 - **100+ endpoints implementados** (incluindo CRUD completo)
 - **3 endpoints de carteira com lógica de superuser** (clientes, categorias, evolução)
-- **13 endpoints de administração** (CRUD de contratos GESTK + acessos)
+- **2 endpoints de administração** (usuários-acesso e contabilidades-admin)
+- **12 endpoints de gestão superuser** (CRUD completo de contratos GESTK)
 - **19 ETLs funcionais** (95% da migração)
 - **6 módulos principais** operacionais
 - **🔴 Pendente**: 5 novos endpoints de carteira + 38 endpoints precisam superuser
@@ -690,11 +691,11 @@ else:
 
 ---
 
-### 6. MÓDULO ADMINISTRAÇÃO (Contratos GESTK)
+### 6. MÓDULO GESTÃO SUPERUSER (Contratos GESTK)
 
-#### 6.1 Tabela: `administracao_contratos_gestk`
-**Modelo**: `apps.administracao.models.ContratoGestk`
-**Descrição**: Contratos entre GESTK e contabilidades
+#### 6.1 Tabela: `billing_contratogestk`
+**Modelo**: `apps.billing.models.ContratoGestk`
+**Descrição**: Contratos entre GESTK e contabilidades (Acesso Superuser)
 
 | Campo | Tipo | API | Frontend | Descrição |
 |-------|------|-----|----------|-----------|
@@ -712,19 +713,20 @@ else:
 **APIs Relacionadas (CRUD Completo):**
 
 **Endpoints Principais:**
-- `GET /api/administracao/contratos-gestk/` - Listar contratos GESTK
-- `POST /api/administracao/contratos-gestk/` - Criar contrato GESTK
-- `GET /api/administracao/contratos-gestk/{id}/` - Detalhes do contrato
-- `PUT /api/administracao/contratos-gestk/{id}/` - Atualizar contrato
-- `PATCH /api/administracao/contratos-gestk/{id}/` - Atualização parcial
-- `DELETE /api/administracao/contratos-gestk/{id}/` - Deletar contrato
+- `GET /api/gestao/superuser/contratos-gestk/` - Listar contratos GESTK
+- `POST /api/gestao/superuser/contratos-gestk/` - Criar contrato GESTK
+- `GET /api/gestao/superuser/contratos-gestk/{id}/` - Detalhes do contrato
+- `PUT /api/gestao/superuser/contratos-gestk/{id}/` - Atualizar contrato
+- `PATCH /api/gestao/superuser/contratos-gestk/{id}/` - Atualização parcial
+- `DELETE /api/gestao/superuser/contratos-gestk/{id}/` - Deletar contrato
 
 **Actions Especiais:**
-- `POST /api/administracao/contratos-gestk/{id}/cancelar/` - Cancelar com motivo
-- `POST /api/administracao/contratos-gestk/{id}/renovar/` - Renovar contrato
-- `POST /api/administracao/contratos-gestk/{id}/suspender/` - Suspender contrato
-- `POST /api/administracao/contratos-gestk/{id}/reativar/` - Reativar contrato
-- `GET /api/administracao/contratos-gestk/estatisticas/` - Estatísticas gerais
+- `POST /api/gestao/superuser/contratos-gestk/{id}/cancelar/` - Cancelar com motivo
+- `POST /api/gestao/superuser/contratos-gestk/{id}/renovar/` - Renovar contrato
+- `POST /api/gestao/superuser/contratos-gestk/{id}/suspender/` - Suspender contrato
+- `POST /api/gestao/superuser/contratos-gestk/{id}/reativar/` - Reativar contrato
+- `GET /api/gestao/superuser/contratos-gestk/estatisticas/` - Estatísticas gerais
+- `GET /api/gestao/superuser/contratos-gestk/resumo/` - Resumo geral
 
 **Filtros Disponíveis:**
 - `?status=ativo` - Filtrar por status
@@ -1337,7 +1339,8 @@ NotaFiscal.objects.filter(contabilidade=request.contabilidade)
 
 ### Admin (Aplicação Administrativa)
 - **Auth**: 5 endpoints (login, logout, me, token, refresh)
-- **Administração**: 13 endpoints (CRUD contratos GESTK + acessos)
+- **Administração**: 2 endpoints (usuários-acesso, contabilidades-admin)
+- **Gestão Superuser**: 12 endpoints (CRUD completo contratos GESTK)
 - **Billing**: 16 endpoints (planos, assinaturas, faturas, pagamentos)
 - **Total Admin**: 34 endpoints
 

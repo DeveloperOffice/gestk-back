@@ -38,49 +38,61 @@ class CarteiraViewSet(viewsets.ViewSet):
         """
         Endpoint: /api/gestao/carteira/clientes/
         Lista clientes por status (Ativos, Inativos, Novos, Sem movimentação)
+        
+        Regra de Ouro Multi-Tenant:
+        - Superuser: Vê TODOS os contratos do banco de dados
+        - Client: Vê apenas contratos da sua contabilidade
         """
         try:
-            # 1. Obter a contabilidade do usuário autenticado
+            # 1. Obter o usuário autenticado
             usuario = request.user
+            logger.info(f"[CARTEIRA] Requisição recebida de usuário: {usuario.username if usuario.is_authenticated else 'ANÔNIMO'}")
+            
             if not usuario.is_authenticated:
-                logger.error("Usuário não autenticado.")
+                logger.error("[CARTEIRA] Usuário não autenticado.")
                 return Response({"error": "Authentication credentials were not provided."}, status=status.HTTP_401_UNAUTHORIZED)
 
-            if not hasattr(usuario, 'contabilidade') or not usuario.contabilidade:
-                logger.error(f"Usuário {usuario.username} não possui contabilidade associada.")
-                return Response(
-                    {"error": "Usuário não possui contabilidade associada"}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            # 2. Verificar se é superuser
+            if usuario.is_superuser:
+                logger.info(f"[CARTEIRA] ✅ Superuser '{usuario.username}' acessando TODOS os contratos do banco de dados")
+                todos_os_contratos = Contrato.objects.all()
+            else:
+                # Usuário comum precisa ter contabilidade associada
+                if not hasattr(usuario, 'contabilidade') or not usuario.contabilidade:
+                    logger.error(f"[CARTEIRA] ❌ Usuário {usuario.username} não possui contabilidade associada.")
+                    return Response(
+                        {"error": "Usuário não possui contabilidade associada"}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                contabilidade = usuario.contabilidade
+                logger.info(f"[CARTEIRA] ✅ Usuário COMUM '{usuario.username}' - Contabilidade: '{contabilidade.razao_social}' (ID: {contabilidade.id})")
+                todos_os_contratos = Contrato.objects.filter(contabilidade=contabilidade)
             
-            contabilidade = usuario.contabilidade
-            logger.info(f"Iniciando busca na carteira para contabilidade: '{contabilidade.razao_social}' (ID: {contabilidade.id})")
-
-            # 2. Buscar todos os contratos da contabilidade
-            todos_os_contratos = Contrato.objects.filter(contabilidade=contabilidade)
+            # 3. Contar contratos
             total_clientes = todos_os_contratos.count()
-            logger.info(f"Total de contratos encontrados para esta contabilidade: {total_clientes}")
+            logger.info(f"[CARTEIRA] 📊 Total de contratos encontrados: {total_clientes}")
 
-            # 3. Calcular status dos clientes
+            # 4. Calcular status dos clientes
             clientes_ativos_qs = todos_os_contratos.filter(ativo=True)
             clientes_ativos = clientes_ativos_qs.count()
             clientes_inativos = total_clientes - clientes_ativos
             
-            # 4. Calcular clientes novos (ativos nos últimos 30 dias)
+            # 5. Calcular clientes novos (ativos nos últimos 30 dias)
             data_limite_novos = timezone.now().date() - timedelta(days=30)
             clientes_novos = clientes_ativos_qs.filter(
                 data_inicio__gte=data_limite_novos
             ).count()
             
-            logger.info(f"Cálculos: Total={total_clientes}, Ativos={clientes_ativos}, Inativos={clientes_inativos}, Novos={clientes_novos}")
+            logger.info(f"[CARTEIRA] 📈 Cálculos: Total={total_clientes}, Ativos={clientes_ativos}, Inativos={clientes_inativos}, Novos={clientes_novos}")
 
-            # 5. Simular clientes sem movimentação
+            # 6. Simular clientes sem movimentação
             contratos_sem_movimentacao = 0
             
-            # 6. Calcular percentual
+            # 7. Calcular percentual
             percentual_ativo = (clientes_ativos / total_clientes * 100) if total_clientes > 0 else 0
 
-            # 7. Montar a resposta
+            # 8. Montar a resposta
             data = {
                 'summary': {
                     'total_clientes': total_clientes,
@@ -93,7 +105,7 @@ class CarteiraViewSet(viewsets.ViewSet):
                 'results': [] 
             }
 
-            logger.info(f"Dados da resposta: {data}")
+            logger.info(f"[CARTEIRA] ✅ Resposta montada com sucesso: {data['summary']}")
             return Response(data)
 
         except Exception as e:
@@ -108,20 +120,31 @@ class CarteiraViewSet(viewsets.ViewSet):
         """
         Endpoint: /api/gestao/carteira/categorias/
         Agregações por regime fiscal e ramo de atividade
+        
+        Regra de Ouro Multi-Tenant:
+        - Superuser: Vê TODOS os contratos do banco de dados
+        - Client: Vê apenas contratos da sua contabilidade
         """
         try:
-            contabilidade = request.user.contabilidade
-            if not contabilidade:
-                return Response(
-                    {"error": "Usuário não possui contabilidade associada"}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            usuario = request.user
+            
+            # Verificar se é superuser
+            if usuario.is_superuser:
+                logger.info(f"Superuser '{usuario.username}' acessando categorias de TODOS os contratos")
+                contratos_ativos = Contrato.objects.filter(ativo=True)
+            else:
+                contabilidade = usuario.contabilidade
+                if not contabilidade:
+                    return Response(
+                        {"error": "Usuário não possui contabilidade associada"}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
-            # Buscar contratos ativos da contabilidade
-            contratos_ativos = Contrato.objects.filter(
-                contabilidade=contabilidade,
-                ativo=True
-            )
+                # Buscar contratos ativos da contabilidade
+                contratos_ativos = Contrato.objects.filter(
+                    contabilidade=contabilidade,
+                    ativo=True
+                )
 
             # Agrupar por regime fiscal (simulado - baseado em dados disponíveis)
             # Como não temos campo específico, vamos usar uma lógica baseada no CNPJ
@@ -162,17 +185,28 @@ class CarteiraViewSet(viewsets.ViewSet):
         """
         Endpoint: /api/gestao/carteira/evolucao/
         Gráficos de evolução mensal de clientes
+        
+        Regra de Ouro Multi-Tenant:
+        - Superuser: Vê TODOS os contratos do banco de dados
+        - Client: Vê apenas contratos da sua contabilidade
         """
         try:
-            contabilidade = request.user.contabilidade
-            if not contabilidade:
-                return Response(
-                    {"error": "Usuário não possui contabilidade associada"}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            usuario = request.user
+            
+            # Verificar se é superuser
+            if usuario.is_superuser:
+                logger.info(f"Superuser '{usuario.username}' acessando evolução de TODOS os contratos")
+                contratos = Contrato.objects.all()
+            else:
+                contabilidade = usuario.contabilidade
+                if not contabilidade:
+                    return Response(
+                        {"error": "Usuário não possui contabilidade associada"}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
-            # Buscar contratos da contabilidade
-            contratos = Contrato.objects.filter(contabilidade=contabilidade)
+                # Buscar contratos da contabilidade
+                contratos = Contrato.objects.filter(contabilidade=contabilidade)
             
             # Agrupar por mês/ano
             evolucao_data = []

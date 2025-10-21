@@ -29,10 +29,13 @@ A **Regra de Ouro** é aplicada automaticamente em todos os endpoints através d
 
 ## 📊 Mapeamento por Módulo
 
-### **Status Atual (14/10/2025)**
-- **91 endpoints implementados** (83% da API)
+### **Status Atual (21/10/2025)**
+- **100+ endpoints implementados** (incluindo CRUD completo)
+- **3 endpoints de carteira com lógica de superuser** (clientes, categorias, evolução)
+- **13 endpoints de administração** (CRUD de contratos GESTK + acessos)
 - **19 ETLs funcionais** (95% da migração)
 - **6 módulos principais** operacionais
+- **🔴 Pendente**: 5 novos endpoints de carteira + 38 endpoints precisam superuser
 
 ### **📋 Lista Completa de Endpoints Implementados**
 
@@ -45,10 +48,24 @@ POST   /api/auth/token/                    # Obter token JWT
 POST   /api/auth/token/refresh/            # Renovar token JWT
 ```
 
-#### **⚙️ Administração (2 endpoints)**
+#### **⚙️ Administração (13 endpoints)**
 ```
+# Contratos GESTK (CRUD Completo)
+GET    /api/administracao/contratos-gestk/                # Listar contratos
+POST   /api/administracao/contratos-gestk/                # Criar contrato
+GET    /api/administracao/contratos-gestk/{id}/           # Detalhes do contrato
+PUT    /api/administracao/contratos-gestk/{id}/           # Atualizar contrato
+PATCH  /api/administracao/contratos-gestk/{id}/           # Atualização parcial
+DELETE /api/administracao/contratos-gestk/{id}/           # Deletar contrato
+POST   /api/administracao/contratos-gestk/{id}/cancelar/  # Cancelar contrato
+POST   /api/administracao/contratos-gestk/{id}/renovar/   # Renovar contrato
+POST   /api/administracao/contratos-gestk/{id}/suspender/ # Suspender contrato
+GET    /api/administracao/contratos-gestk/estatisticas/   # Estatísticas
+
+# Usuários e Acessos
 GET    /api/administracao/usuarios-acesso/     # Acessos de usuários
-GET    /api/administracao/contabilidades-admin/ # Contabilidades com admin
+POST   /api/administracao/usuarios-acesso/     # Conceder acesso
+GET    /api/administracao/contabilidades-admin/ # Contabilidades
 ```
 
 #### **💰 Billing (44 endpoints)**
@@ -87,16 +104,22 @@ GET    /api/gestao/superuser/contratos-gestk/  # Contratos GESTK
 GET    /api/gestao/admin/contratos/            # Contratos (admin)
 GET    /api/gestao/admin/usuarios/             # Usuários (admin)
 
-# Módulos específicos
-GET    /api/gestao/carteira/clientes/          # Carteira de clientes
-GET    /api/gestao/carteira/categorias/        # Categorias por regime
-GET    /api/gestao/carteira/evolucao/          # Evolução mensal
+# Carteira de Clientes (✅ COM SUPERUSER)
+GET    /api/gestao/carteira/clientes/          # Lista com resumo (superuser ok)
+GET    /api/gestao/carteira/categorias/        # Categorias por regime (superuser ok)
+GET    /api/gestao/carteira/evolucao/          # Evolução mensal (superuser ok)
+
+# Gestão de Clientes (⏳ PENDENTE SUPERUSER)
 GET    /api/gestao/clientes/lista/             # Lista de clientes
 GET    /api/gestao/clientes/detalhes/          # Detalhes do cliente
 GET    /api/gestao/clientes/socios/            # Sócios majoritários
+
+# Gestão de Usuários (⏳ PENDENTE SUPERUSER)
 GET    /api/gestao/usuarios/lista/             # Lista de usuários
 GET    /api/gestao/usuarios/atividades/        # Atividades por usuário
 GET    /api/gestao/usuarios/produtividade/     # Produtividade por usuário
+
+# Escritório (⏳ PENDENTE SUPERUSER)
 GET    /api/gestao/escritorio/visao_geral/     # Visão geral do escritório
 ```
 
@@ -381,21 +404,27 @@ POST   /api/auth/logout/                   - Logout e invalidação do token
 | `cnpj` | String | ✅ | Client | CNPJ da empresa |
 | `razao_social` | String | ✅ | Client | Razão social |
 | `nome_fantasia` | String | ✅ | Client | Nome fantasia |
-| `regime_fiscal` | String | ✅ | Client | Regime fiscal (novo) |
-| `ramo_atividade` | String | ✅ | Client | Ramo de atividade (novo) |
+| `regime_tributario` | String | ✅ | Client | Regime tributário (1=Simples, 2=Presumido, 3=Real, 4=MEI) |
+| `ramo_atividade` | String | ⏳ | Client | Ramo de atividade (campo existe?) |
 | `uf` | String | ✅ | Client | Estado |
 | `cidade` | String | ✅ | Client | Cidade |
 | `ativo` | Boolean | ✅ | Client | Status ativo/inativo |
 | `data_inicio_atividades` | Date | ✅ | Client | Data de abertura |
 
 **APIs Relacionadas:**
-- `GET /api/gestao/carteira/` - Carteira de clientes
-- `GET /api/gestao/clientes/` - Gestão de clientes
-- `GET /api/dashboards/fiscal/clientes/` - Clientes com maior faturamento
+- `GET /api/gestao/carteira/clientes/` - Carteira (✅ COM SUPERUSER)
+- `GET /api/gestao/carteira/categorias/` - Por regime (✅ COM SUPERUSER)
+- `GET /api/gestao/carteira/evolucao/` - Evolução (✅ COM SUPERUSER)
+- `GET /api/gestao/carteira/resumo/` - Resumo (❌ NÃO EXISTE)
+- `GET /api/gestao/carteira/regime-tributario/` - Distribuição (❌ NÃO EXISTE)
+- `GET /api/gestao/carteira/ramo-atividade/` - Distribuição (❌ NÃO EXISTE)
+- `GET /api/gestao/clientes/` - Gestão (⏳ PENDENTE SUPERUSER)
+- `GET /api/dashboards/fiscal/clientes/` - Top clientes (⏳ PENDENTE SUPERUSER)
 
 **Regra de Ouro**: 
-- Filtrado automaticamente por `contabilidade_atual`
-- Usuário só vê empresas da sua contabilidade
+- **Superuser**: Vê TODAS as empresas do banco de dados
+- **Client**: Vê apenas empresas da sua contabilidade (`contabilidade_atual`)
+- **Filtro automático**: Via GenericForeignKey em Contrato
 
 #### 2.2 Tabela: `pessoas_fisicas`
 **Modelo**: `apps.pessoas.models.PessoaFisica`
@@ -424,28 +453,43 @@ POST   /api/auth/logout/                   - Logout e invalidação do token
 
 #### 2.3 Tabela: `pessoas_contratos`
 **Modelo**: `apps.pessoas.models.Contrato`
-**Descrição**: Contratos entre contabilidades e clientes
+**Descrição**: Contratos entre contabilidades e clientes (TABELA CENTRAL PARA CARTEIRA)
 
 | Campo | Tipo | API | Frontend | Descrição |
 |-------|------|-----|----------|-----------|
 | `id` | UUID | ✅ | Client | Identificador único |
-| `contabilidade` | FK | ✅ | Client | Contabilidade (tenant) |
-| `cliente` | GFK | ✅ | Client | Cliente (PF ou PJ) |
-| `data_inicio` | Date | ✅ | Client | Data de início |
+| `contabilidade` | FK | ✅ | Client | Contabilidade (tenant) - **CAMPO CHAVE** |
+| `content_type` | FK | ✅ | Client | Tipo do cliente (PF ou PJ) |
+| `object_id` | UUID | ✅ | Client | ID do cliente |
+| `cliente` | GFK | ✅ | Client | Cliente (PF ou PJ) via GenericForeignKey |
+| `data_inicio` | Date | ✅ | Client | Data de início do contrato |
 | `data_termino` | Date | ✅ | Client | Data de término |
 | `valor_honorario` | Decimal | ✅ | Client | Valor do honorário |
 | `plano_servico` | String | ✅ | Client | Plano contratado |
 | `modulos_contratados` | JSON | ✅ | Client | Módulos incluídos |
 | `status_cobranca` | String | ✅ | Client | Status da cobrança |
-| `ativo` | Boolean | ✅ | Client | Status ativo/inativo |
+| `ativo` | Boolean | ✅ | Client | Status ativo/inativo - **FILTRO PRINCIPAL** |
 
 **APIs Relacionadas:**
-- `GET /api/gestao/carteira/{id}/contratos/` - Contratos da empresa
-- `GET /api/gestao/clientes/{id}/contratos/` - Contratos do cliente
+- `GET /api/gestao/carteira/clientes/` - Lista contratos (✅ COM SUPERUSER)
+  - Superuser: `Contrato.objects.all()` → **2.186 contratos**
+  - Client: `Contrato.objects.filter(contabilidade=user.contabilidade)`
+- `GET /api/gestao/carteira/categorias/` - Agrupa por regime (✅ COM SUPERUSER)
+- `GET /api/gestao/carteira/evolucao/` - Evolução temporal (✅ COM SUPERUSER)
+- `GET /api/gestao/carteira/{id}/contratos/` - Contratos da empresa (⏳ PENDENTE)
+- `GET /api/gestao/clientes/{id}/contratos/` - Contratos do cliente (⏳ PENDENTE)
 
-**Regra de Ouro**: 
-- Filtrado automaticamente por `contabilidade`
-- Usuário só vê contratos da sua contabilidade
+**Regra de Ouro Implementada**: 
+```python
+# Backend: apps/api/gestao/carteira/views.py
+if usuario.is_superuser:
+    todos_os_contratos = Contrato.objects.all()  # 2.186 contratos
+else:
+    contabilidade = usuario.contabilidade
+    todos_os_contratos = Contrato.objects.filter(contabilidade=contabilidade)
+```
+
+**Status**: ✅ Superuser implementado em 3 endpoints de carteira
 
 ---
 
@@ -665,18 +709,35 @@ POST   /api/auth/logout/                   - Logout e invalidação do token
 | `modulos_inclusos` | JSON | ✅ | Admin | Módulos incluídos |
 | `limites` | JSON | ✅ | Admin | Limites do contrato |
 
-**APIs Relacionadas:**
-- `GET /api/gestao/superuser/contratos-gestk/` - Listar contratos GESTK (Superuser)
-- `POST /api/gestao/superuser/contratos-gestk/` - Criar contrato (Superuser)
-- `PUT /api/gestao/superuser/contratos-gestk/{id}/` - Atualizar contrato (Superuser)
-- `POST /api/gestao/superuser/contratos-gestk/{id}/renovar/` - Renovar contrato
-- `POST /api/gestao/superuser/contratos-gestk/{id}/suspender/` - Suspender contrato
-- `POST /api/gestao/superuser/contratos-gestk/{id}/cancelar/` - Cancelar contrato
-- `GET /api/gestao/superuser/contratos-gestk/estatisticas/` - Estatísticas de contratos
+**APIs Relacionadas (CRUD Completo):**
+
+**Endpoints Principais:**
+- `GET /api/administracao/contratos-gestk/` - Listar contratos GESTK
+- `POST /api/administracao/contratos-gestk/` - Criar contrato GESTK
+- `GET /api/administracao/contratos-gestk/{id}/` - Detalhes do contrato
+- `PUT /api/administracao/contratos-gestk/{id}/` - Atualizar contrato
+- `PATCH /api/administracao/contratos-gestk/{id}/` - Atualização parcial
+- `DELETE /api/administracao/contratos-gestk/{id}/` - Deletar contrato
+
+**Actions Especiais:**
+- `POST /api/administracao/contratos-gestk/{id}/cancelar/` - Cancelar com motivo
+- `POST /api/administracao/contratos-gestk/{id}/renovar/` - Renovar contrato
+- `POST /api/administracao/contratos-gestk/{id}/suspender/` - Suspender contrato
+- `POST /api/administracao/contratos-gestk/{id}/reativar/` - Reativar contrato
+- `GET /api/administracao/contratos-gestk/estatisticas/` - Estatísticas gerais
+
+**Filtros Disponíveis:**
+- `?status=ativo` - Filtrar por status
+- `?contabilidade=uuid` - Filtrar por contabilidade
+- `?plano_servico=premium` - Filtrar por plano
+- `?vencendo_em=30` - Contratos vencendo em X dias
+- `?search=termo` - Busca textual
+- `?ordering=-data_inicio` - Ordenação
 
 **Regra de Ouro**: 
-- **Admin**: Acesso a todos os contratos
-- **Client**: Não tem acesso (apenas Admin)
+- **Superuser**: Acesso total a todos os contratos GESTK
+- **Admin**: Acesso apenas a contratos da sua contabilidade
+- **Client**: Sem acesso (apenas Admin/Superuser)
 
 ---
 
@@ -751,6 +812,234 @@ POST   /api/auth/logout/                   - Logout e invalidação do token
 **Regra de Ouro**: 
 - **Admin**: Acesso a todas as faturas
 - **Client**: Não tem acesso (apenas Admin)
+
+---
+
+## 🎯 NOVOS ENDPOINTS - CARTEIRA DE CLIENTES (21/10/2025)
+
+### ✅ **Endpoints Implementados com Lógica de Superuser**
+
+#### 1. `GET /api/gestao/carteira/clientes/`
+**Status**: ✅ Implementado (superuser OK)  
+**Arquivo**: `apps/api/gestao/carteira/views.py` (linhas 24-105)
+
+**Lógica de Superuser**:
+```python
+if usuario.is_superuser:
+    todos_os_contratos = Contrato.objects.all()  # 2.186 contratos
+else:
+    todos_os_contratos = Contrato.objects.filter(contabilidade=usuario.contabilidade)
+```
+
+**Response Atual**:
+```json
+{
+  "summary": {
+    "total_clientes": 2186,
+    "clientes_ativos": 1550,
+    "clientes_inativos": 636,
+    "clientes_novos": 6,
+    "clientes_sem_movimentacao": 0,
+    "percentual_ativo": 70.91
+  },
+  "results": []  // ⚠️ VAZIO - Precisa popular com lista de clientes
+}
+```
+
+**Melhorias Necessárias**:
+- [ ] Popular array `results` com lista de clientes
+- [ ] Implementar paginação (count, next, previous)
+- [ ] Adicionar filtros (status, regime_fiscal, search)
+- [ ] Incluir dados completos (razao_social, cnpj, etc.)
+
+---
+
+#### 2. `GET /api/gestao/carteira/categorias/`
+**Status**: ✅ Implementado (superuser OK)  
+**Arquivo**: `apps/api/gestao/carteira/views.py` (linhas 107-180)
+
+**Lógica de Superuser**:
+```python
+if usuario.is_superuser:
+    contratos_ativos = Contrato.objects.filter(ativo=True)
+else:
+    contratos_ativos = Contrato.objects.filter(
+        contabilidade=contabilidade,
+        ativo=True
+    )
+```
+
+**Response Atual**:
+```json
+[
+  {
+    "contabilidade": {
+      "id": "uuid",
+      "cnpj": "12345678000190",
+      "razao_social": "Contabilidade ABC"
+    },
+    "categoria": "Simples Nacional",
+    "total_clientes": 1100
+  },
+  {
+    "categoria": "Lucro Presumido",
+    "total_clientes": 700
+  }
+]
+```
+
+**Melhorias Necessárias**:
+- [ ] Ajustar estrutura para match com frontend
+- [ ] Frontend espera: `{regime, nome, quantidade, percentual}`
+- [ ] Remover campo `contabilidade` (desnecessário para frontend)
+
+---
+
+#### 3. `GET /api/gestao/carteira/evolucao/`
+**Status**: ✅ Implementado (superuser OK)  
+**Arquivo**: `apps/api/gestao/carteira/views.py` (linhas 182-235)
+
+**Lógica de Superuser**:
+```python
+if usuario.is_superuser:
+    total_clientes_mes = Contrato.objects.filter(
+        data_inicio__lte=month,
+        ativo=True
+    ).count()
+else:
+    total_clientes_mes = Contrato.objects.filter(
+        contabilidade=contabilidade,
+        data_inicio__lte=month,
+        ativo=True
+    ).count()
+```
+
+**Response Atual**:
+```json
+[
+  {
+    "mes_ano": "2024-10",
+    "total_clientes": 1550
+  },
+  {
+    "mes_ano": "2024-11",
+    "total_clientes": 1580
+  }
+]
+```
+
+**Melhorias Necessárias**:
+- [ ] Adicionar campo `mes` formatado ("out. de 24")
+- [ ] Adicionar `novos_clientes_mes`
+- [ ] Adicionar `clientes_inativos_mes`
+- [ ] Suportar parâmetro `?meses=12` (atualmente fixo em 6)
+
+---
+
+### ❌ **Endpoints Pendentes (Não Existem)**
+
+#### 4. `GET /api/gestao/carteira/resumo/`
+**Status**: ❌ NÃO EXISTE  
+**Prioridade**: 🔴 CRÍTICA
+
+**Response Esperado**:
+```json
+{
+  "summary": {
+    "total_clientes": 2186,
+    "clientes_ativos": 1550,
+    "clientes_inativos": 636,
+    "clientes_novos": 6,
+    "clientes_sem_movimentacao": 0,
+    "percentual_ativo": 70.91
+  }
+}
+```
+
+**Implementação**:
+```python
+@action(detail=False, methods=['get'])
+def resumo(self, request):
+    # Reusar lógica de clientes() mas retornar só summary
+    pass
+```
+
+---
+
+#### 5. `GET /api/gestao/carteira/regime-tributario/`
+**Status**: ❌ NÃO EXISTE  
+**Prioridade**: 🔴 ALTA
+
+**Response Esperado**:
+```json
+[
+  {
+    "regime": "SIMPLES_NACIONAL",
+    "nome": "Simples Nacional",
+    "quantidade": 1100,
+    "percentual": 50.32
+  }
+]
+```
+
+---
+
+#### 6. `GET /api/gestao/carteira/ramo-atividade/`
+**Status**: ❌ NÃO EXISTE  
+**Prioridade**: 🔴 ALTA
+
+**Response Esperado**:
+```json
+[
+  {
+    "ramo": "Consultoria",
+    "nome": "Consultoria",
+    "quantidade": 450,
+    "percentual": 20.59
+  }
+]
+```
+
+---
+
+#### 7. `GET /api/gestao/carteira/aniversarios-parceria/`
+**Status**: ❌ NÃO EXISTE  
+**Prioridade**: 🟡 MÉDIA
+
+**Response Esperado**:
+```json
+[
+  {
+    "id": "uuid",
+    "razao_social": "Empresa A LTDA",
+    "cnpj": "12.345.678/0001-90",
+    "data_aniversario": "2025-01-15",
+    "dias_faltando": 86,
+    "mes_aniversario": "janeiro"
+  }
+]
+```
+
+---
+
+#### 8. `GET /api/gestao/carteira/socios-aniversariantes/`
+**Status**: ❌ NÃO EXISTE  
+**Prioridade**: 🟡 MÉDIA
+
+**Response Esperado**:
+```json
+[
+  {
+    "id": "uuid",
+    "nome_socio": "João Silva",
+    "empresa_razao_social": "Empresa A LTDA",
+    "empresa_cnpj": "12.345.678/0001-90",
+    "data_nascimento": "1980-03-15",
+    "dias_faltando": 45,
+    "mes_aniversario": "março"
+  }
+]
+```
 
 ---
 
@@ -891,15 +1180,28 @@ NotaFiscal.objects.filter(contabilidade=request.contabilidade)
 
 #### 1.1 Carteira de Clientes
 **Tabelas**: `pessoas_juridicas`, `pessoas_contratos`
-**APIs**: 
-- `GET /api/gestao/carteira/clientes/` - Lista de clientes
+**APIs Implementadas** (✅ COM SUPERUSER): 
+- `GET /api/gestao/carteira/clientes/` - Resumo + lista (results vazio)
 - `GET /api/gestao/carteira/categorias/` - Categorias por regime fiscal
-- `GET /api/gestao/carteira/evolucao/` - Evolução mensal
-**Dados Solicitados**:
-- Lista de empresas com filtros
-- Categorização por status
-- Evolução mensal
-- Detalhes por competência
+- `GET /api/gestao/carteira/evolucao/` - Evolução últimos 6 meses
+
+**APIs Pendentes** (❌ NÃO EXISTEM):
+- `GET /api/gestao/carteira/resumo/` - Endpoint dedicado para resumo
+- `GET /api/gestao/carteira/regime-tributario/` - Distribuição por regime
+- `GET /api/gestao/carteira/ramo-atividade/` - Distribuição por ramo
+- `GET /api/gestao/carteira/aniversarios-parceria/` - Aniversários de contratos
+- `GET /api/gestao/carteira/socios-aniversariantes/` - Aniversários de sócios
+
+**Ajustes Necessários**:
+- `/clientes/` - Implementar paginação e popular array `results`
+- `/evolucao/` - Adicionar campos: `novos_clientes_mes`, `clientes_inativos_mes`
+- `/categorias/` - Ajustar estrutura para match com frontend
+
+**Dados Solicitados pelo Frontend**:
+- Lista de empresas com paginação e filtros
+- Categorização por status e regime
+- Evolução mensal com detalhes
+- Aniversários de parceria e sócios
 
 #### 1.2 Gestão de Clientes
 **Tabelas**: `pessoas_juridicas`, `pessoas_fisicas`, `pessoas_contratos`
@@ -1034,20 +1336,21 @@ NotaFiscal.objects.filter(contabilidade=request.contabilidade)
 ## 📊 Resumo de Endpoints por Módulo
 
 ### Admin (Aplicação Administrativa)
-- **Auth**: 4 endpoints
-- **Administração**: 12 endpoints
-- **Billing**: 16 endpoints
-- **Total Admin**: 32 endpoints
+- **Auth**: 5 endpoints (login, logout, me, token, refresh)
+- **Administração**: 13 endpoints (CRUD contratos GESTK + acessos)
+- **Billing**: 16 endpoints (planos, assinaturas, faturas, pagamentos)
+- **Total Admin**: 34 endpoints
 
 ### Client (Aplicação do Cliente)
-- **Auth**: 4 endpoints
-- **Gestão**: 20 endpoints
-- **Dashboards**: 25 endpoints
-- **Export**: 6 endpoints
-- **Escritório**: 4 endpoints
-- **Total Client**: 59 endpoints
+- **Auth**: 5 endpoints (compartilhados)
+- **Gestão**: 21 endpoints (carteira + clientes + usuários + escritório)
+- **Dashboards**: 25 endpoints (demográfico + fiscal + contábil + organizacional + pessoal)
+- **Export**: 6 endpoints (PDF + Excel)
+- **Total Client**: 57 endpoints
 
-### **Total Geral**: 91 endpoints
+### **Total Geral**: 100+ endpoints
+
+**Nota**: Alguns endpoints são compartilhados entre Admin e Client (Auth), mas com permissões diferentes.
 
 **Observação Importante**: 
 - Endpoints de `ContratoGestk` foram consolidados em `/api/gestao/superuser/contratos-gestk/`

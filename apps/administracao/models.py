@@ -621,3 +621,62 @@ class ContratoGestk(models.Model):
         self.motivo_suspensao = None
         self.data_suspensao = None
         self.save()
+
+
+class EstatisticaUsuario(BaseModeloMultitenant):
+    """
+    Tabela de estatísticas consolidadas por usuário e empresa - NORMALIZADO
+    
+    Agrega dados de atividades, importações e lançamentos
+    para consultas rápidas e relatórios
+    """
+    usuario = models.ForeignKey(
+        'administracao.Usuario',
+        on_delete=models.CASCADE,
+        db_index=True,
+        help_text="Usuário das estatísticas"
+    )
+    empresa = models.ForeignKey(
+        PessoaJuridica,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Empresa das estatísticas"
+    )
+    periodo_referencia = models.DateField(
+        db_index=True,
+        help_text="Período de referência das estatísticas (YYYY-MM-01)"
+    )
+    
+    # Estatísticas de Atividades
+    total_atividades = models.IntegerField(default=0)
+    tempo_total_minutos = models.IntegerField(default=0)
+    modulos_acessados = models.JSONField(default=list)
+    
+    # Estatísticas de Importações
+    total_importacoes = models.IntegerField(default=0)
+    importacoes_saidas = models.IntegerField(default=0)
+    importacoes_entradas = models.IntegerField(default=0)
+    importacoes_servicos = models.IntegerField(default=0)
+    valor_total_importacoes = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    
+    # Estatísticas de Lançamentos
+    total_lancamentos = models.IntegerField(default=0)
+    lancamentos_manuais = models.IntegerField(default=0)
+    lancamentos_automaticos = models.IntegerField(default=0)
+    valor_total_lancamentos = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=['contabilidade', 'usuario', 'periodo_referencia']),
+            models.Index(fields=['contabilidade', 'empresa', 'periodo_referencia']),
+            models.Index(fields=['usuario', 'periodo_referencia']),
+            models.Index(fields=['empresa', 'periodo_referencia']),
+        ]
+        unique_together = ['contabilidade', 'usuario', 'empresa', 'periodo_referencia']
+        verbose_name = 'Estatística do Usuário'
+        verbose_name_plural = 'Estatísticas dos Usuários'
+    
+    def __str__(self):
+        return f"{self.usuario.nome_usuario} - {self.empresa.nome_fantasia if self.empresa else 'Geral'} - {self.periodo_referencia}"

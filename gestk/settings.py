@@ -61,9 +61,10 @@ INSTALLED_APPS = [
     'apps.importacao.apps.ImportacaoConfig',              # 8º - Sistema de ETL
     'apps.administracao.apps.AdministracaoConfig',        # 9º - Administração (Usuários, Permissões)
     'apps.billing.apps.BillingConfig',                    # 10º - Billing e Cobrança
-    'apps.api.apps.ApiConfig',                            # 11º - API REST
-    'apps.api.gestao.apps.GestaoConfig',                  # 11º - Gestão (Endpoints de Análise)
-    'apps.api.dashboards.apps.DashboardsConfig',          # 12º - Dashboards (Endpoints de Análise)
+    'apps.gestao_models.apps.GestaoModelsConfig',         # 11º - Gestão (Modelos de Análise)
+    'apps.api.apps.ApiConfig',                            # 12º - API REST
+    'apps.api.gestao.apps.GestaoConfig',                  # 12º - Gestão (Endpoints de Análise)
+    'apps.api.dashboards.apps.DashboardsConfig',          # 13º - Dashboards (Endpoints de Análise)
 ]
 
 MIDDLEWARE = [

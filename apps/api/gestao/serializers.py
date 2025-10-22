@@ -36,6 +36,29 @@ class ClienteSerializer(serializers.Serializer):
     valor_honorario = serializers.DecimalField(max_digits=15, decimal_places=2, read_only=True)
 
 
+class ResponsavelSerializer(serializers.Serializer):
+    """Serializer para responsável legal"""
+    nome = serializers.CharField()
+    email = serializers.EmailField(allow_null=True)
+    telefone = serializers.CharField(allow_null=True)
+    cpf = serializers.CharField(allow_null=True)
+
+
+class ClienteListagemSerializer(serializers.Serializer):
+    """Serializer para lista de clientes no dashboard"""
+    id = serializers.UUIDField()
+    razao_social = serializers.CharField()
+    nome_fantasia = serializers.CharField(allow_null=True)
+    cnpj = serializers.CharField()
+    status = serializers.CharField()
+    regime_fiscal = serializers.CharField(allow_null=True)
+    ramo_atividade = serializers.CharField(allow_null=True)
+    data_inicio = serializers.DateField(allow_null=True)
+    data_fim = serializers.DateField(allow_null=True)
+    valor_mensal = serializers.DecimalField(max_digits=15, decimal_places=2, allow_null=True)
+    responsavel = ResponsavelSerializer(allow_null=True)
+
+
 class CarteiraClientesSerializer(serializers.Serializer):
     """Serializer para análise de carteira de clientes"""
     
@@ -158,3 +181,100 @@ class UsuarioProdutividadeSerializer(serializers.Serializer):
     media_atividades_por_dia = serializers.DecimalField(max_digits=8, decimal_places=2, read_only=True)
     media_tempo_por_atividade = serializers.DecimalField(max_digits=8, decimal_places=2, read_only=True)
     eficiencia = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
+
+
+# Serializers para endpoint de usuários com dados reais
+class UsuarioListagemDashboardSerializer(serializers.Serializer):
+    """Serializer simplificado para lista de usuários no dashboard"""
+    id = serializers.UUIDField()
+    nome = serializers.CharField()
+    status = serializers.CharField()
+
+
+class ProdutividadeMensalRealSerializer(serializers.Serializer):
+    """Produtividade mensal baseada em EstatisticaUsuario"""
+    mes = serializers.CharField()
+    tempo_total_horas = serializers.FloatField()
+    total_importacoes = serializers.IntegerField()
+    total_lancamentos = serializers.IntegerField()
+    lancamentos_manuais = serializers.IntegerField()
+    lancamentos_automaticos = serializers.IntegerField()
+    total_atividades = serializers.IntegerField()
+
+
+class RankingProdutividadeRealSerializer(serializers.Serializer):
+    """Ranking com dados reais"""
+    usuario_id = serializers.UUIDField()
+    nome = serializers.CharField()
+    tempo_sistema_horas = serializers.FloatField()
+    total_lancamentos = serializers.IntegerField()
+    lancamentos_manuais = serializers.IntegerField()
+    total_importacoes = serializers.IntegerField()
+    eficiencia = serializers.FloatField()
+
+
+class ProdutividadePorEmpresaSerializer(serializers.Serializer):
+    """Produtividade por empresa"""
+    empresa_cnpj = serializers.CharField()
+    empresa_nome = serializers.CharField()
+    tempo_horas = serializers.FloatField()
+    total_lancamentos = serializers.IntegerField()
+    lancamentos_manuais = serializers.IntegerField()
+    lancamentos_automaticos = serializers.IntegerField()
+    total_importacoes = serializers.IntegerField()
+    total_atividades = serializers.IntegerField()
+
+
+# Serializers para análise do escritório de contabilidade
+class ResumoFinanceiroSerializer(serializers.Serializer):
+    """Resumo financeiro geral do escritório"""
+    faturamento_total = serializers.DecimalField(max_digits=15, decimal_places=2)
+    faturamento_mensal = serializers.DecimalField(max_digits=15, decimal_places=2)
+    custo_operacional_total = serializers.DecimalField(max_digits=15, decimal_places=2)
+    custo_operacional_mensal = serializers.DecimalField(max_digits=15, decimal_places=2)
+    lucro_bruto = serializers.DecimalField(max_digits=15, decimal_places=2)
+    margem_bruta_percentual = serializers.FloatField()
+    lucro_liquido = serializers.DecimalField(max_digits=15, decimal_places=2)
+    margem_liquida_percentual = serializers.FloatField()
+
+
+class FaturamentoPorTipoSerializer(serializers.Serializer):
+    """Faturamento por tipo de nota fiscal"""
+    tipo = serializers.CharField()
+    valor = serializers.DecimalField(max_digits=15, decimal_places=2)
+    quantidade = serializers.IntegerField()
+
+
+class EvolucaoMensalSerializer(serializers.Serializer):
+    """Evolução mensal de faturamento"""
+    mes = serializers.CharField()
+    valor = serializers.DecimalField(max_digits=15, decimal_places=2)
+    notas = serializers.IntegerField()
+
+
+class TopClientesSerializer(serializers.Serializer):
+    """Top clientes por faturamento"""
+    cliente = serializers.CharField()
+    cnpj = serializers.CharField()
+    valor = serializers.DecimalField(max_digits=15, decimal_places=2)
+    notas = serializers.IntegerField()
+
+
+class FolhaPagamentoSerializer(serializers.Serializer):
+    """Dados da folha de pagamento"""
+    total_mensal = serializers.DecimalField(max_digits=15, decimal_places=2)
+    total_funcionarios = serializers.IntegerField()
+    custo_medio_funcionario = serializers.DecimalField(max_digits=15, decimal_places=2)
+    evolucao_mensal = EvolucaoMensalSerializer(many=True)
+
+
+class DRESerializer(serializers.Serializer):
+    """Demonstração do Resultado do Exercício"""
+    receita_bruta = serializers.DecimalField(max_digits=15, decimal_places=2)
+    impostos = serializers.DecimalField(max_digits=15, decimal_places=2)
+    receita_liquida = serializers.DecimalField(max_digits=15, decimal_places=2)
+    custos_variaveis = serializers.DecimalField(max_digits=15, decimal_places=2)
+    lucro_bruto = serializers.DecimalField(max_digits=15, decimal_places=2)
+    despesas_operacionais = serializers.DecimalField(max_digits=15, decimal_places=2)
+    lucro_operacional = serializers.DecimalField(max_digits=15, decimal_places=2)
+    lucro_liquido = serializers.DecimalField(max_digits=15, decimal_places=2)

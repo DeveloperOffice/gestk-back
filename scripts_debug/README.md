@@ -18,6 +18,7 @@ Esta pasta contém scripts auxiliares criados durante o desenvolvimento para tes
 - `monitorar_etl_06.py` - Monitoramento do ETL06
 - `verificar_etl15_regra_ouro.py` - Verificação do ETL15 (Regra Ouro)
 - `verificar_status_etls.py` - Status geral de todos os ETLs
+- `validar_etl03_regime_cnae.py` - ⭐ **NOVO** Validação ETL03_1 (Regime Tributário e CNAE)
 
 ### 📝 Scripts de Análise de Dados
 - `analisar_rubricas.py` - Análise de rubricas

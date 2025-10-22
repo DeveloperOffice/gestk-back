@@ -55,19 +55,18 @@ class PessoaJuridica(models.Model):
         blank=True, 
         null=True
     )
-    simples_nacional = models.BooleanField(_('Simples Nacional'), default=False)
     
-    # Campos adicionais para dashboards
-    regime_fiscal = models.CharField(
-        _('Regime Fiscal'),
-        max_length=20,
-        choices=[
-            ('simples', 'Simples Nacional'),
-            ('presumido', 'Lucro Presumido'),
-            ('real', 'Lucro Real'),
-        ],
-        blank=True, null=True
+    # Regime tributário secundário (tabela foparmto)
+    classificacao_tributaria = models.CharField(
+        _('Classificação Tributária'), 
+        max_length=50, 
+        blank=True, 
+        null=True
     )
+    cooperativa = models.BooleanField(_('Cooperativa'), default=False)
+    construtora = models.BooleanField(_('Construtora'), default=False)
+    produtor_rural = models.BooleanField(_('Produtor Rural'), default=False)
+    gerar_esocial_domestico = models.BooleanField(_('Gerar eSocial Doméstico'), default=False)
     ramo_atividade = models.CharField(
         _('Ramo de Atividade'),
         max_length=20,
@@ -82,23 +81,36 @@ class PessoaJuridica(models.Model):
     # Responsável legal
     responsavel_legal = models.CharField(_('Responsável Legal'), max_length=255, blank=True, null=True)
     cpf_responsavel = models.CharField(_('CPF do Responsável'), max_length=14, blank=True, null=True)
+    email_resp_legal = models.EmailField(_('Email do Responsável Legal'), blank=True, null=True)
     
     # Dados empresariais
     data_inicio_atividades = models.DateField(_('Data de Início das Atividades'), blank=True, null=True)
+    data_cadastro = models.DateField(_('Data de Cadastro'), blank=True, null=True)
+    data_inatividade = models.DateField(_('Data de Inatividade'), blank=True, null=True)
+    situacao = models.CharField(_('Situação'), max_length=20, blank=True, null=True)
+    motivo_inatividade = models.CharField(_('Motivo de Inatividade'), max_length=100, blank=True, null=True)
     
-    # CNAE
-    cnae_principal = models.ForeignKey(
-        'cadastros_gerais.CNAE', 
-        on_delete=models.SET_NULL, 
-        null=True, 
+    # CNAE - Código direto do Sybase
+    cnae_codigo = models.CharField(
+        _('Código CNAE'), 
+        max_length=20, 
         blank=True, 
-        related_name='empresas_cnae_principal'
+        null=True,
+        help_text='Código CNAE principal importado do Sybase'
     )
-    cnaes_secundarios = models.ManyToManyField(
-        'cadastros_gerais.CNAE', 
-        related_name='empresas_cnae_secundario', 
-        blank=True
+    cnae_secundarios = models.TextField(
+        _('CNAEs Secundários'), 
+        blank=True, 
+        null=True,
+        help_text='Códigos CNAE secundários separados por vírgula'
     )
+    
+    # Dados adicionais do Sybase
+    cae = models.CharField(_('CAE'), max_length=20, blank=True, null=True)
+    contador = models.CharField(_('Contador'), max_length=50, blank=True, null=True)
+    duracao_contrato = models.IntegerField(_('Duração do Contrato (meses)'), blank=True, null=True)
+    data_termino_contrato = models.DateField(_('Data de Término do Contrato'), blank=True, null=True)
+    certificado_digital = models.CharField(_('Certificado Digital'), max_length=255, blank=True, null=True)
     
     # Status
     ativo = models.BooleanField(_('Ativo'), default=True)
@@ -107,6 +119,22 @@ class PessoaJuridica(models.Model):
     
     history = HistoricalRecords()
     
+    @property
+    def simples_nacional(self):
+        """Property computed para compatibilidade - retorna True se regime_tributario == '1'"""
+        return self.regime_tributario == '1'
+    
+    @property
+    def regime_fiscal_legivel(self):
+        """Property computed para compatibilidade - retorna regime fiscal em formato legível"""
+        mapping = {
+            '1': 'simples',
+            '2': 'presumido', 
+            '3': 'real',
+            '4': 'mei'
+        }
+        return mapping.get(self.regime_tributario, None)
+
     @property
     def contrato_ativo(self):
         """

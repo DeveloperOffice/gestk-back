@@ -74,10 +74,12 @@ class Command(BaseETLCommand):
             bethadba.gequadrosocietario_socios.participacao, 
             bethadba.gequadrosocietario_socios.qdade_quotas,
             bethadba.gequadrosocietario_socios.codi_emp, 
-            bethadba.gequadrosocietario_socios.i_socio,              
-            bethadba.gesocios.i_socio, 
+            bethadba.gequadrosocietario_socios.i_socio as i_socio_quadro,              
+            bethadba.gesocios.i_socio as i_socio_gesocios, 
             bethadba.gesocios.nome, 
             bethadba.gesocios.inscricao,
+            bethadba.gesocios.dtnascimento,
+            bethadba.gesocios.emancipado,
             bethadba.geempre.nome_emp,
             capital_social = Isnull(( SELECT bethadba.gequadrosocietario.capital_social 
                                      FROM bethadba.gequadrosocietario
@@ -272,21 +274,44 @@ class Command(BaseETLCommand):
     def buscar_ou_criar_pessoa_fisica(self, cpf, nome, socio_data):
         """Busca ou cria pessoa física"""
         try:
+            # Processar data de nascimento
+            data_nascimento = socio_data.get('dtnascimento')
+            if data_nascimento and isinstance(data_nascimento, str):
+                try:
+                    # Converter string para date se necessário
+                    if ' ' in data_nascimento:
+                        data_nascimento = data_nascimento.split(' ')[0]
+                    data_nascimento = date.fromisoformat(data_nascimento)
+                except (ValueError, TypeError):
+                    data_nascimento = None
+            elif data_nascimento and hasattr(data_nascimento, 'date'):
+                data_nascimento = data_nascimento.date()
+            else:
+                data_nascimento = None
+            
             if not self.dry_run:
                 pessoa, created = PessoaFisica.objects.get_or_create(
                     cpf=cpf,
                     defaults={
                         'id_legado': socio_data.get('i_socio'),
                         'nome_completo': nome,
+                        'data_nascimento': data_nascimento,
                     }
                 )
+                
+                # Se já existia, atualizar data_nascimento se necessário
+                if not created and data_nascimento and not pessoa.data_nascimento:
+                    pessoa.data_nascimento = data_nascimento
+                    pessoa.save()
+                    self.stdout.write(f"   📝 PF {cpf} atualizada com data_nascimento: {data_nascimento}")
+                
                 return pessoa
             else:
                 # Modo dry-run: verificar se existe
                 if PessoaFisica.objects.filter(cpf=cpf).exists():
                     return PessoaFisica.objects.filter(cpf=cpf).first()
                 else:
-                    return PessoaFisica(cpf=cpf, nome_completo=nome)  # Objeto temporário
+                    return PessoaFisica(cpf=cpf, nome_completo=nome, data_nascimento=data_nascimento)  # Objeto temporário
         except Exception as e:
             self.stdout.write(self.style.ERROR(f'Erro ao criar/buscar PF {cpf}: {e}'))
             return None

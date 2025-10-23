@@ -1,11 +1,10 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+"""
+URLs para API de Escritório
+"""
+
+from django.urls import path
 from .views import EscritorioViewSet
 
-# Router para ViewSets
-router = DefaultRouter()
-router.register(r'', EscritorioViewSet, basename='escritorio')
-
 urlpatterns = [
-    # Incluir rotas do router
-] + router.urls
+    path('dashboard/', EscritorioViewSet.as_view({'get': 'dashboard'}), name='escritorio-dashboard'),
+]

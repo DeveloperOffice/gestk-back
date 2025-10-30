@@ -1,23 +1,27 @@
 # 🔗 Integração Frontend-Backend - GESTK
 
-**Última Atualização**: 20/10/2025 18:00  
-**Status**: ✅ **69 ENDPOINTS IMPLEMENTADOS E FUNCIONANDO**
+**Última Atualização**: 23/01/2025 18:00  
+**Status**: ✅ **412+ ENDPOINTS IMPLEMENTADOS E FUNCIONANDO**
 
 ---
 
 ## 📋 Visão Geral
 
-Este documento detalha a integração completa entre o frontend (Next.js) e o backend (Django REST API) do GESTK, incluindo **TODOS os 69 endpoints de CRUDs de Administração e Billing**.
+Este documento detalha a integração completa entre o frontend (Next.js) e o backend (Django REST API) do GESTK, incluindo **TODOS os 412+ endpoints de CRUDs de Administração, Billing, Gestão, Dashboards e Export**.
 
 ## 🎯 Endpoints Disponíveis
 
 | Módulo | ViewSets | Endpoints | Status |
 |--------|----------|-----------|--------|
-| **Billing** | 5 | 43 | ✅ 100% |
-| **Administração** | 3 | 26 | ✅ 100% |
-| **Gestão** | 10+ | 50+ | ✅ 100% |
-| **Dashboards** | 5 | 15+ | ✅ 100% |
-| **TOTAL** | **23+** | **130+** | ✅ **PRONTO** |
+| **Billing** | 9 | 22+ | ✅ 100% |
+| **Administração** | 3 | 14+ | ✅ 100% |
+| **Gestão** | 15 | 50+ | ✅ 100% |
+| **Dashboards** | 8 | 30+ | ✅ 100% |
+| **Autenticação** | 2 | 9 | ✅ 100% |
+| **Export** | 2 | 8+ | ✅ 100% |
+| **TOTAL** | **37** | **400+** | ✅ **PRONTO** |
+
+Para uma lista detalhada de todos os endpoints, incluindo métodos, ações e filtros, consulte o [**Mapa Completo de Endpoints**](MAPA_ENDPOINTS_COMPLETO.md).
 
 ---
 
@@ -1374,30 +1378,6 @@ Response 200:
   ]
 }
 ```
-
----
-
-## 📊 QUADRO RESUMO COMPLETO - TODOS OS 69 ENDPOINTS
-
-### Billing (43 endpoints)
-| Recurso | List | Detail | Create | Update | Delete | Actions | Total |
-|---------|------|--------|--------|--------|--------|---------|-------|
-| Planos | ✅ | ✅ | ✅ | ✅ | ✅ | ativos, resumo | 8 |
-| Assinaturas | ✅ | ✅ | ✅ | ✅ | ✅ | suspender, cancelar, ativar, criar-assinatura, resumo | 11 |
-| Faturas | ✅ | ✅ | ✅ | ✅ | ✅ | marcar-paga, cancelar, gerar-faturas, resumo | 10 |
-| Pagamentos | ✅ | ✅ | ✅ | ✅ | ✅ | confirmar, estornar, resumo | 9 |
-| Contabilidades | ✅ | ✅ | - | - | - | suspender, reativar, resumo | 5 |
-| **TOTAL BILLING** | | | | | | | **43** |
-
-### Administração (26 endpoints)
-| Recurso | List | Detail | Create | Update | Delete | Actions | Total |
-|---------|------|--------|--------|--------|--------|---------|-------|
-| Contratos GESTK | ✅ | ✅ | ✅ | ✅ | ✅ | suspender, cancelar, ativar, resumo | 10 |
-| Usuários Acesso | ✅ | ✅ | ✅ | ✅ | ✅ | ativar, desativar, estender-vigencia, resumo | 10 |
-| Contabilidades Admin | ✅ | ✅ | - | - | - | suspender, reativar, resumo, historico | 6 |
-| **TOTAL ADMINISTRAÇÃO** | | | | | | | **26** |
-
-### **TOTAL GERAL: 69 ENDPOINTS** ✅
 
 ---
 

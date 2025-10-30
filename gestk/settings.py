@@ -36,19 +36,21 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,0.0.0.0', c
 AUTH_USER_MODEL = 'core.Usuario'
 
 INSTALLED_APPS = [
+    # Django Core
     'django.contrib.admin',
     'django.contrib.auth',
-    'django.contrib.contenttypes', # Necessário para GenericForeignKey
+    'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-
-    # Third party apps
+    
+    # Bibliotecas de terceiros
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
     'simple_history',
     'django_extensions',
+    'django_filters',
 
     # Apps locais (SEGUIR ESTA ORDEM)
     'apps.core.apps.CoreConfig',                          # 1º - Base (Contabilidade, Usuario)
@@ -175,8 +177,11 @@ STATIC_URL = 'static/'
 # REST FRAMEWORK
 REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 50,
+    'PAGE_SIZE': 100,
 }
+
+# Configurações de Autenticação
+AUTH_USER_MODEL = 'core.Usuario'
 
 # =============================================================================
 # CONFIGURAÇÕES CORS E SEGURANÇA
@@ -286,11 +291,9 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
+    'DEFAULT_PERMISSION_CLASSES': ('rest_framework.permissions.IsAuthenticated',),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 20,
+    'PAGE_SIZE': 100,
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
         'rest_framework.filters.SearchFilter',

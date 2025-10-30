@@ -56,16 +56,55 @@ class EscritorioViewSet(viewsets.ViewSet):
         Bloco 1: Dados gerais do escritório
         """
         try:
-            # Buscar dados da contabilidade
+            # Fallback: tentar obter informações da PessoaJuridica vinculada
+            # ATENÇÃO: PessoaJuridica não possui FK direta para Contabilidade aqui no modelo,
+            # então buscamos pela correspondência de CNPJ (mesma abordagem usada em outras partes do arquivo)
+            pj = PessoaJuridica.objects.filter(cnpj=contabilidade.cnpj).first()
+
+            # Montar endereço a partir da Contabilidade, com fallback da PessoaJuridica
+            if contabilidade.endereco:
+                endereco_value = contabilidade.endereco
+            else:
+                if pj:
+                    partes_endereco = [
+                        pj.logradouro or '',
+                        pj.numero or '',
+                        pj.complemento or '',
+                        pj.bairro or '',
+                        pj.cidade or '',
+                        pj.uf or '',
+                        pj.cep or '',
+                    ]
+                    # Remover vazios e unir com vírgula/ espaço
+                    endereco_value = ', '.join([p for p in partes_endereco if p]) or 'Endereço não informado'
+                else:
+                    endereco_value = 'Endereço não informado'
+
+            telefone_value = contabilidade.telefone or (pj.telefone if pj and pj.telefone else 'Telefone não informado')
+            # Email: preferir da contabilidade; fallback email da PJ; por fim email do resp. legal
+            email_value = (
+                contabilidade.email
+                or (pj.email if pj and pj.email else None)
+                or (getattr(pj, 'email_resp_legal', None) if pj else None)
+                or 'Email não informado'
+            )
+            # Responsável: preferir responsável financeiro; fallback responsável legal da PJ
+            responsavel_value = (
+                contabilidade.responsavel_financeiro_nome
+                or (getattr(pj, 'responsavel_legal', None) if pj else None)
+                or 'Responsável não informado'
+            )
+
+            # Buscar dados consolidados
             dados_contabilidade = {
                 'id': str(contabilidade.id),
                 'razao_social': contabilidade.razao_social,
                 'nome_fantasia': contabilidade.nome_fantasia or contabilidade.razao_social,
                 'cnpj': contabilidade.cnpj,
-                'endereco': contabilidade.endereco or 'Endereço não informado',
-                'telefone': contabilidade.telefone or 'Telefone não informado',
-                'email': contabilidade.email or 'Email não informado',
-                'responsavel': contabilidade.responsavel_financeiro_nome or 'Responsável não informado',
+                'endereco': endereco_value,
+                'telefone': telefone_value,
+                'email': email_value,
+                'responsavel': responsavel_value,
                 'data_fundacao': contabilidade.created_at.strftime('%Y-%m-%d'),
             }
             
@@ -207,14 +246,29 @@ class EscritorioViewSet(viewsets.ViewSet):
                 lancamentos_manuais = lancamentos_total - lancamentos_automaticos
                 percentual_lancamentos_manuais = (lancamentos_manuais / lancamentos_total * 100) if lancamentos_total > 0 else 0
                 
-                # 5. Vínculos de folha ativos
-                vinculos_folhas_ativos = VinculoEmpregaticio.objects.filter(
-                    contabilidade=contabilidade,
-                    data_admissao__lte=mes_data
-                ).filter(
-                    Q(data_demissao__gte=mes_data) | Q(data_demissao__isnull=True),
-                    ativo=True
-                ).count()
+                # 5. Vínculos de folha ativos (funcionários internos da contabilidade)
+                # Buscar a PessoaJuridica associada à contabilidade
+                from django.contrib.contenttypes.models import ContentType
+                pj_contabilidade = PessoaJuridica.objects.filter(
+                    cnpj=contabilidade.cnpj
+                ).first()
+                
+                if pj_contabilidade:
+                    # Buscar ContentType de PessoaJuridica
+                    pj_content_type = ContentType.objects.get_for_model(PessoaJuridica)
+                    
+                    # Contar vínculos onde a PJ da contabilidade é o empregador
+                    vinculos_folhas_ativos = VinculoEmpregaticio.objects.filter(
+                        content_type=pj_content_type,
+                        object_id=pj_contabilidade.id,
+                        data_admissao__lte=mes_data
+                    ).filter(
+                        Q(data_demissao__gte=mes_data) | Q(data_demissao__isnull=True),
+                        ativo=True
+                    ).count()
+                else:
+                    # Se não encontrar a PJ, retorna 0
+                    vinculos_folhas_ativos = 0
                 
                 # 6. Notas fiscais
                 notas_fiscais = NotaFiscal.objects.filter(

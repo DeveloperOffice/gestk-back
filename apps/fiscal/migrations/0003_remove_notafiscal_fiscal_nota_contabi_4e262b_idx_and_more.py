@@ -99,10 +99,10 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='notafiscal',
-            constraint=models.CheckConstraint(condition=models.Q(('parceiro_pj__isnull', False), ('parceiro_pf__isnull', False), _connector='OR'), name='fiscal_notafiscal_tem_parceiro'),
+            constraint=models.CheckConstraint(check=models.Q(('parceiro_pj__isnull', False), ('parceiro_pf__isnull', False), _connector='OR'), name='fiscal_notafiscal_tem_parceiro'),
         ),
         migrations.AddConstraint(
             model_name='notafiscal',
-            constraint=models.CheckConstraint(condition=models.Q(('parceiro_pj__isnull', False), ('parceiro_pf__isnull', False), _negated=True), name='fiscal_notafiscal_apenas_um_parceiro'),
+            constraint=models.CheckConstraint(check=models.Q(('parceiro_pj__isnull', False), ('parceiro_pf__isnull', False), _negated=True), name='fiscal_notafiscal_apenas_um_parceiro'),
         ),
     ]
